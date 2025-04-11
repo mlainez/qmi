@@ -144,8 +144,8 @@ defmodule QMI.Codec.UserIdentity do
   end
 
   defp parse_card_status_tlvs(result, <<type, length::little-16, content::binary-size(length), tlvs::binary >>) do
-    Logger.debug("[QMI]: Message type: #{type} ignored")
-    Logger.debug("[QMI]: Message content: #{content}")
+    Logger.info("[QMI]: Message type: #{type} ignored")
+    Logger.info("[QMI]: Message content: #{inspect(content, limit: :infinity)}")
     result |> parse_card_status_tlvs(tlvs)
   end
 
