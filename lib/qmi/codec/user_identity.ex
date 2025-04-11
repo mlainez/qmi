@@ -141,11 +141,11 @@ defmodule QMI.Codec.UserIdentity do
     parse_card_status_tlvs(result, tlvs)
   end
 
-  defp parse_card_status_tlvs(result, <<0x02, length::little-16, _content::binary-size(length), tlvs::binary >>) do
-    parse_card_status_tlvs(result, tlvs)
+  defp parse_card_status_tlvs(result, <<0x15, length::little-16, _content::binary-size(length), tlvs::binary >>) do
+    result |> parse_card_status_tlvs(tlvs)
   end
 
-  defp parse_card_status_tlvs(result, <<0x15, length::little-16, _content::binary-size(length), tlvs::binary >>) do
+  defp parse_card_status_tlvs(result, <<0x12, length::little-16, _content::binary-size(length), tlvs::binary >>) do
     result |> parse_card_status_tlvs(tlvs)
   end
 
@@ -167,6 +167,10 @@ defmodule QMI.Codec.UserIdentity do
     |> Map.put(:index_1x_secondary, index_1x_secondary)
     |> parse_cards(cards_count, rest, 0)
     |> parse_card_status_tlvs(tlvs)
+  end
+
+  defp parse_card_status_tlvs(result, <<0x02, length::little-16, _content::binary-size(length), tlvs::binary >>) do
+    parse_card_status_tlvs(result, tlvs)
   end
 
   defp parse_card_status_tlvs(result, <<>>) do
