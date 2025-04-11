@@ -86,7 +86,7 @@ defmodule QMI.Codec.UserIdentity do
     parse_tlvs(result, rest)
   end
 
-  def provisioning_uim(slot_id, application_id) do
+  def provision_uim_session(slot_id, application_id) do
     application_information_tlv = application_information_tlv(slot_id, application_id)
     session_change_tlv = session_change_tlv()
 
@@ -125,7 +125,7 @@ defmodule QMI.Codec.UserIdentity do
     {:error, :unknown}
   end
 
-  def cards_status() do
+  def get_cards_status() do
     %{
       service_id: 0x0B,
       payload: [<<@get_card_status::16-little, 0, 0>>],

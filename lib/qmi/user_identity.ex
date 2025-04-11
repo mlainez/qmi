@@ -19,6 +19,16 @@ defmodule QMI.UserIdentity do
     |> QMI.call(qmi)
   end
 
+  def get_cards_status(qmi) do
+    Codec.UserIdentity.get_cards_status()
+    |> QMI.call(qmi)
+  end
+
+  def provision_uim_session(qmi, slot_id, application_id) do
+    Codec.UserIdentity.provision_uim_session(slot_id, application_id)
+    |> QMI.call(qmi)
+  end
+
   @doc """
   Parse a raw binary ICCID
 
