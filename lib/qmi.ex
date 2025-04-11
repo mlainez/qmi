@@ -72,6 +72,8 @@ defmodule QMI do
 
     if File.exists?(path) do
       File.write!(path, "Y")
+    else
+      :ok
     end
   end
 
