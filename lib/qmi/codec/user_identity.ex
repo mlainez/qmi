@@ -150,7 +150,7 @@ defmodule QMI.Codec.UserIdentity do
   end
 
   defp parse_card_status_tlvs(result, <<0x10, length::little-16, content::binary-size(length), tlvs::binary >>) do
-    Logger.warning("[QMI]: Message of type 0x10 received #{content}")
+    Logger.warning("[QMI]: Current result: #{inspect(result)}")
     << index_gw_primary::little-16,
       index_1x_primary::little-16,
       index_gw_secondary::little-16,
@@ -167,6 +167,7 @@ defmodule QMI.Codec.UserIdentity do
   end
 
   defp parse_card_status_tlvs(result, <<>>) do
+    Logger.warning("[QMI]: Current result: #{inspect(result)}")
     Logger.warning("[QMI]: No more tlvs to parse")
     {:ok, result}
   end
@@ -200,24 +201,17 @@ defmodule QMI.Codec.UserIdentity do
     result
   end
 
-  defp parse_applications(rest, num_apps) do
-    case num_apps do
-    0 ->
-      {[], rest}
-    _ ->
-      Enum.reduce(0..(num_apps - 1), {[], rest}, fn _i, {apps, rest} ->
-        {app, rest_after_app} = parse_application(rest)
-        {apps ++ [app], rest_after_app}
-      end)
-    end
+  def parse_applications(rest, num_apps) do
+    result = []
+    parse_application(result, num_apps, rest)
   end
 
-  defp parse_application(rest) do
-    <<app_type::8, app_state::8, personalization_state::8, personalization_feature::8,
+  defp parse_application(result, n, <<app_type::8, app_state::8, personalization_state::8, personalization_feature::8,
       personalization_retries::8, personalization_unblock_retries::8,
       aid_len::8, aid::binary-size(aid_len), upin_replaces_pin1::8,
       pin1_state::8, pin1_retries::8, puk1_retries::8,
-      pin2_state::8, pin2_retries::8, puk2_retries::8, rest_after_apps::binary >> = rest
+      pin2_state::8, pin2_retries::8, puk2_retries::8, rest_after_app::binary >>) do
+
     app = %{
       type: app_type,
       state: app_state,
@@ -234,6 +228,11 @@ defmodule QMI.Codec.UserIdentity do
       pin2_retries: pin2_retries,
       puk2_retries: puk2_retries
     }
-    {app, rest_after_apps}
+    updated_result = result ++ app
+    parse_application(updated_result, n - 1, rest_after_app)
+  end
+
+  defp parse_application(result, 0, rest) do
+    {result, rest}
   end
 end
