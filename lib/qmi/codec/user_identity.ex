@@ -180,6 +180,10 @@ defmodule QMI.Codec.UserIdentity do
     |> parse_cards(cards_count, rest, 0)
   end
 
+  defp parse_cards(result, 0, _rest, _slot_id) do
+    result
+  end
+
   defp parse_cards(result, n, <<
         card_state::8,
         upin_state::8,
@@ -205,13 +209,13 @@ defmodule QMI.Codec.UserIdentity do
     parse_cards(updated_result, n - 1, rest_after_apps, slot_id + 1)
   end
 
-  defp parse_cards(result, 0, _rest, _slot_id) do
-    result
-  end
-
   def parse_applications(rest, num_apps) do
     result = []
     parse_application(result, num_apps, rest)
+  end
+
+  defp parse_application(result, 0, rest) do
+    {result, rest}
   end
 
   defp parse_application(result, n, <<app_type::8, app_state::8, personalization_state::8, personalization_feature::8,
@@ -238,9 +242,5 @@ defmodule QMI.Codec.UserIdentity do
     }
     updated_result = result ++ app
     parse_application(updated_result, n - 1, rest_after_app)
-  end
-
-  defp parse_application(result, 0, rest) do
-    {result, rest}
   end
 end
