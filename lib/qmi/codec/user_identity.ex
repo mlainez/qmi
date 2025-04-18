@@ -150,6 +150,7 @@ defmodule QMI.Codec.UserIdentity do
   end
 
   defp parse_card_status_tlvs(result, <<0x10, length::little-16, content::binary-size(length), tlvs::binary >>) do
+    Logger.warning("[QMI]: Message of type 0x10 received #{content}")
     << index_gw_primary::little-16,
       index_1x_primary::little-16,
       index_gw_secondary::little-16,
@@ -166,6 +167,7 @@ defmodule QMI.Codec.UserIdentity do
   end
 
   defp parse_card_status_tlvs(result, <<>>) do
+    Logger.warning("[QMI]: No more tlvs to parse")
     {:ok, result}
   end
 
