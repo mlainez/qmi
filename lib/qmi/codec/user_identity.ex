@@ -96,7 +96,7 @@ defmodule QMI.Codec.UserIdentity do
 
     %{
       service_id: 0x0B,
-      payload: [<< @change_uim_session::little-16, size::little-16 >>, tlvs],
+      payload: [<<@change_uim_session::little-16, size::little-16>>, tlvs],
       decode: &parse_provisioning_response/1
     }
   end

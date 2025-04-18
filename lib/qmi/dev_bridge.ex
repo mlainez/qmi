@@ -137,6 +137,7 @@ defmodule QMI.DevBridge do
   end
 
   def handle_call({:write, data}, from, state) do
+    Logger.debug("[QMI.DevBridge] #{inspect(state.port)} write: #{inspect(data)}")
     call_port(state.port, @cmd_write, data, from)
     {:noreply, state}
   end
