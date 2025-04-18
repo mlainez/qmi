@@ -91,13 +91,12 @@ defmodule QMI.Codec.UserIdentity do
   def provision_uim_session(slot_id, application_id) do
     application_information_tlv = application_information_tlv(slot_id, application_id)
     session_change_tlv = session_change_tlv()
-
     tlvs = <<application_information_tlv::binary, session_change_tlv::binary>>
     size = byte_size(tlvs)
 
     %{
       service_id: 0x0B,
-      payload: [<< @change_uim_session::16-little, size::little-16, tlvs::binary >>],
+      payload: [<< @change_uim_session::little-16, size::little-16 >>, tlvs],
       decode: &parse_provisioning_response/1
     }
   end
@@ -119,11 +118,13 @@ defmodule QMI.Codec.UserIdentity do
   defp parse_provisioning_response(
     << @change_uim_session::little-16, _tlv_length::little-16,
       0x02, _value_length::little-16, 0x00, 0x00, 0x00, 0x00 >>) do
+    Logger.info("[QMI]: Provisioning session change successful")
     {:ok}
   end
 
   defp parse_provisioning_response(
     << @change_uim_session::little-16, _rest::binary >>) do
+    Logger.error("[QMI]: Provisioning session change failed")
     {:error, :unknown}
   end
 
