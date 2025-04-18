@@ -144,15 +144,28 @@ defmodule QMI.Codec.UserIdentity do
   end
 
   defp parse_card_status_tlvs(result, <<type, length::little-16, content::binary-size(length), tlvs::binary >>) do
-    Logger.warning("[QMI]: Message ignored")
-    Logger.warning("[QMI]: Message type: #{type}")
-    Logger.warning("[QMI]: Message length: #{length}")
+    Logger.warning("[QMI]: Message of type #{type} with content length #{length} ignored")
     Logger.warning("[QMI]: Message content: #{inspect(content, limit: :infinity)}")
     result |> parse_card_status_tlvs(tlvs)
   end
 
   defp parse_card_status_tlvs(result, <<0x10, length::little-16, content::binary-size(length), tlvs::binary >>) do
-    Logger.warning("[QMI]: Current result: #{inspect(result)}")
+    Logger.warning("[QMI]: Cards TLV result: #{inspect(result)}")
+    parse_cards_tlv(result, content)
+    |> parse_card_status_tlvs(tlvs)
+  end
+
+  defp parse_card_status_tlvs(result, <<0x10, length::little-16, content::binary-size(length) >>) do
+    Logger.warning("[QMI]: Cards TLV result: #{inspect(result)}")
+    parse_cards_tlv(result, content)
+  end
+
+  defp parse_card_status_tlvs(result, <<>>) do
+    Logger.warning("[QMI]: No more tlvs to parse")
+    {:ok, result}
+  end
+
+  defp parse_cards_tlv(result, content) do
     << index_gw_primary::little-16,
       index_1x_primary::little-16,
       index_gw_secondary::little-16,
@@ -165,13 +178,6 @@ defmodule QMI.Codec.UserIdentity do
     |> Map.put(:index_gw_secondary, index_gw_secondary)
     |> Map.put(:index_1x_secondary, index_1x_secondary)
     |> parse_cards(cards_count, rest, 0)
-    |> parse_card_status_tlvs(tlvs)
-  end
-
-  defp parse_card_status_tlvs(result, <<>>) do
-    Logger.warning("[QMI]: Current result: #{inspect(result)}")
-    Logger.warning("[QMI]: No more tlvs to parse")
-    {:ok, result}
   end
 
   defp parse_cards(result, n, <<
