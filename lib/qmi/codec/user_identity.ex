@@ -144,24 +144,21 @@ defmodule QMI.Codec.UserIdentity do
   end
 
   defp parse_card_status_tlvs(result, <<0x10, length::little-16, content::binary-size(length), tlvs::binary >>) do
-    Logger.warning("[QMI]: Cards TLV result: #{inspect(result)}")
     parse_cards_tlv(result, content)
     |> parse_card_status_tlvs(tlvs)
   end
 
   defp parse_card_status_tlvs(result, <<0x10, length::little-16, content::binary-size(length) >>) do
-    Logger.warning("[QMI]: Cards TLV result: #{inspect(result)}")
     parse_cards_tlv(result, content)
   end
 
   defp parse_card_status_tlvs(result, <<type, length::little-16, content::binary-size(length), tlvs::binary >>) do
-    Logger.warning("[QMI]: Message of type #{type} with content length #{length} ignored")
-    Logger.warning("[QMI]: Message content: #{inspect(content, limit: :infinity)}")
+    Logger.info("[QMI]: Message type #{type} with content length #{length} ignored")
+    Logger.info("[QMI]: Message content: #{inspect(content, limit: :infinity)}")
     result |> parse_card_status_tlvs(tlvs)
   end
 
   defp parse_card_status_tlvs(result, <<>>) do
-    Logger.warning("[QMI]: No more tlvs to parse")
     {:ok, result}
   end
 
@@ -210,12 +207,11 @@ defmodule QMI.Codec.UserIdentity do
   end
 
   def parse_applications(rest, num_apps) do
-    result = []
-    parse_application(result, num_apps, rest)
+    parse_application([], num_apps, rest)
   end
 
   defp parse_application(result, 0, rest) do
-    {result, rest}
+    {Enum.reverse(result), rest}
   end
 
   defp parse_application(result, n, <<app_type::8, app_state::8, personalization_state::8, personalization_feature::8,
@@ -240,7 +236,7 @@ defmodule QMI.Codec.UserIdentity do
       pin2_retries: pin2_retries,
       puk2_retries: puk2_retries
     }
-    updated_result = result ++ app
+    updated_result = [app | result]
     parse_application(updated_result, n - 1, rest_after_app)
   end
 end
