@@ -143,12 +143,6 @@ defmodule QMI.Codec.UserIdentity do
     parse_card_status_tlvs(result, tlvs)
   end
 
-  defp parse_card_status_tlvs(result, <<type, length::little-16, content::binary-size(length), tlvs::binary >>) do
-    Logger.warning("[QMI]: Message of type #{type} with content length #{length} ignored")
-    Logger.warning("[QMI]: Message content: #{inspect(content, limit: :infinity)}")
-    result |> parse_card_status_tlvs(tlvs)
-  end
-
   defp parse_card_status_tlvs(result, <<0x10, length::little-16, content::binary-size(length), tlvs::binary >>) do
     Logger.warning("[QMI]: Cards TLV result: #{inspect(result)}")
     parse_cards_tlv(result, content)
@@ -158,6 +152,12 @@ defmodule QMI.Codec.UserIdentity do
   defp parse_card_status_tlvs(result, <<0x10, length::little-16, content::binary-size(length) >>) do
     Logger.warning("[QMI]: Cards TLV result: #{inspect(result)}")
     parse_cards_tlv(result, content)
+  end
+
+  defp parse_card_status_tlvs(result, <<type, length::little-16, content::binary-size(length), tlvs::binary >>) do
+    Logger.warning("[QMI]: Message of type #{type} with content length #{length} ignored")
+    Logger.warning("[QMI]: Message content: #{inspect(content, limit: :infinity)}")
+    result |> parse_card_status_tlvs(tlvs)
   end
 
   defp parse_card_status_tlvs(result, <<>>) do
