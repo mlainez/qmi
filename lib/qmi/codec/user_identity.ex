@@ -175,7 +175,7 @@ defmodule QMI.Codec.UserIdentity do
     |> Map.put(:index_1x_primary, index_1x_primary)
     |> Map.put(:index_gw_secondary, index_gw_secondary)
     |> Map.put(:index_1x_secondary, index_1x_secondary)
-    |> parse_cards(cards_count, rest, 0)
+    |> parse_cards(cards_count, rest, 1)
   end
 
   defp parse_cards(result, 0, _rest, _slot_id) do
