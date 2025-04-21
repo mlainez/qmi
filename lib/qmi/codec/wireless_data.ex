@@ -15,7 +15,8 @@ defmodule QMI.Codec.WirelessData do
   @start_network_interface 0x0020
   @packet_service_status_ind 0x0022
   @modify_profile_settings 0x0028
-  @get_profile_list 0x0025
+  @get_profile_list 0x002A
+  #@get_profile_settings 0x002B
 
   # When a stat is configured to be reported but no data has been recorded
   # before the indication is sent, the value is `0xFFFFFFFF` which is treated as
@@ -646,7 +647,7 @@ defmodule QMI.Codec.WirelessData do
     Enum.reverse(profiles)
   end
 
-  defp parse_profile_list_tlvs(profiles, <<0x01, len::little-16, rest::binary-size(len), tail::binary>>) do
+  defp parse_profile_list_tlvs(profiles, <<0x01, len::little-16, _num_profiles::8, rest::binary-size(len), tail::binary>>) do
     parsed_profiles = parse_profile_list_entries([], rest)
     parse_profile_list_tlvs(parsed_profiles ++ profiles, tail)
   end
@@ -661,11 +662,11 @@ defmodule QMI.Codec.WirelessData do
 
   defp parse_profile_list_entries(acc, <<profile_type, profile_index, rest::binary>>) do
     entry = %{
-    profile_type: parse_profile_type(profile_type),
-    profile_index: profile_index
-  }
+      profile_type: parse_profile_type(profile_type),
+      profile_index: profile_index
+    }
 
-  parse_profile_list_entries([entry | acc], rest)
+    parse_profile_list_entries([entry | acc], rest)
   end
 
   defp parse_profile_type(0x00), do: :three_gpp
