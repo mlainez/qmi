@@ -15,6 +15,7 @@ defmodule QMI.Codec.WirelessData do
   @start_network_interface 0x0020
   @packet_service_status_ind 0x0022
   @modify_profile_settings 0x0028
+  @get_profile_list 0x0025
 
   # When a stat is configured to be reported but no data has been recorded
   # before the indication is sent, the value is `0xFFFFFFFF` which is treated as
@@ -614,4 +615,59 @@ defmodule QMI.Codec.WirelessData do
        ) do
     parse_profile_settings_resp_tlvs(rest, parsed)
   end
+
+  def get_profile_list(opts \\ []) do
+    tlv =
+      case Keyword.get(opts, :profile_type) do
+        :three_gpp -> <<0x01, 0x01, 0x00, 0x00>>
+        :three_gpp2 -> <<0x01, 0x01, 0x00, 0x01>>
+        _ -> <<>>
+      end
+
+    length = byte_size(tlv)
+    payload = [<<@get_profile_list::little-16, length::little-16>>, tlv]
+
+    %{
+      service_id: 0x01,
+      payload: payload,
+      decode: &parse_get_profile_list_response/1
+    }
+  end
+
+  defp parse_get_profile_list_response(
+    <<@get_profile_list::little-16, size::little-16, tlvs::binary-size(size)>>
+    ) do
+    {:ok, parse_profile_list_tlvs([], tlvs)}
+  end
+
+  defp parse_get_profile_list_response(_other), do: {:error, :unexpected_response}
+
+  defp parse_profile_list_tlvs(profiles, <<>>) do
+    Enum.reverse(profiles)
+  end
+
+  defp parse_profile_list_tlvs(profiles, <<0x01, len::little-16, rest::binary-size(len), tail::binary>>) do
+    parsed_profiles = parse_profile_list_entries([], rest)
+    parse_profile_list_tlvs(parsed_profiles ++ profiles, tail)
+  end
+
+  defp parse_profile_list_tlvs(profiles, <<_type, len::little-16, _skip::binary-size(len), rest::binary>>) do
+    parse_profile_list_tlvs(profiles, rest)
+  end
+
+  defp parse_profile_list_entries(acc, <<>>) do
+    Enum.reverse(acc)
+  end
+
+  defp parse_profile_list_entries(acc, <<profile_type, profile_index, rest::binary>>) do
+    entry = %{
+    profile_type: parse_profile_type(profile_type),
+    profile_index: profile_index
+  }
+
+  parse_profile_list_entries([entry | acc], rest)
+  end
+
+  defp parse_profile_type(0x00), do: :three_gpp
+  defp parse_profile_type(0x01), do: :three_gpp2
 end
