@@ -45,4 +45,9 @@ defmodule QMI.WirelessData do
     Codec.WirelessData.modify_profile_settings(profile_index, settings)
     |> QMI.call(qmi)
   end
+
+  def get_profile_list(qmi, args) do
+    Codec.WirelessData.get_profile_list(args)
+    |> QMI.call(qmi)
+  end
 end
