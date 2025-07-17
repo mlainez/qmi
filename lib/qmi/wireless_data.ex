@@ -46,8 +46,14 @@ defmodule QMI.WirelessData do
     |> QMI.call(qmi)
   end
 
+  @spec get_profile_list(atom(), keyword()) :: any()
   def get_profile_list(qmi, args) do
     Codec.WirelessData.get_profile_list(args)
+    |> QMI.call(qmi)
+  end
+
+  def get_current_settings(qmi) do
+    Codec.WirelessData.get_current_settings()
     |> QMI.call(qmi)
   end
 end
