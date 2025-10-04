@@ -74,17 +74,11 @@ defmodule QMI.Codec.Profile do
   end
 
   @doc """
-  Request a list of available profiles for a given profile type.
-
-  Supported profile types:
-    * :profile_type_3gpp
-    * :profile_type_3gpp2
-    * :profile_type_epc
+  Request a list of available profiles
   """
-  @spec get_profile_list(profile_type()) :: QMI.request()
-  def get_profile_list(type \\ :profile_type_3gpp) do
-    type_byte = encode_profile_type(type)
-    tlv = <<0x01, 0x01::little-16, type_byte>>
+  @spec get_profile_list() :: QMI.request()
+  def get_profile_list() do
+    tlv = <<0x01, 0x00>>
     size = byte_size(tlv)
 
     %{

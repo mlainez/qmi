@@ -34,10 +34,10 @@ defmodule QMI.Profile do
       {:ok, [%{profile_type: :profile_type_3gpp, index: 1, name: "internet"}]}
 
   """
-  @spec get_profile_list(QMI.name(), Codec.Profile.profile_type()) ::
+  @spec get_profile_list(QMI.name()) ::
           {:ok, [map()]} | {:error, atom()}
-  def get_profile_list(qmi, type \\ :profile_type_3gpp) do
-    Codec.Profile.get_profile_list(type)
+  def get_profile_list(qmi) do
+    Codec.Profile.get_profile_list()
     |> QMI.call(qmi)
   end
 end
