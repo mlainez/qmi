@@ -65,7 +65,7 @@ defmodule QMI.WirelessData do
   @doc """
   Get the list of all configured profiles by iterating through profile indices.
 
-  Starts at index 0 and continues until receiving {:error, :extended_internal},
+  Starts at index 1 and continues until receiving {:error, :extended_internal},
   which indicates we've reached the end of available profiles.
 
   """
@@ -74,7 +74,7 @@ defmodule QMI.WirelessData do
     profile_type = Keyword.get(opts, :profile_type, :profile_type_3gpp)
     max_profiles = Keyword.get(opts, :max_profiles, 255)
 
-    collect_profiles(client, profile_type, 0, max_profiles, [])
+    collect_profiles(client, profile_type, 1, max_profiles, [])
   end
 
   defp collect_profiles(_client, _type, index, max_index, acc) when index > max_index do
