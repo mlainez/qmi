@@ -60,7 +60,7 @@ defmodule QMI.Codec.Profile do
   def get_profile_settings(index, type \\ :profile_type_3gpp) do
     type_byte = encode_profile_type(type)
     # TLV 0x01: profile info (type + index)
-    tlv = <<0x01, 0x02, type_byte, index>>
+    tlv = <<0x01, 0x02::little-16, type_byte, index>>
     size = byte_size(tlv)
 
     %{
@@ -89,10 +89,7 @@ defmodule QMI.Codec.Profile do
 
     %{
       service_id: 0x01,
-      payload: [
-        <<@get_profile_list::little-16, size::little-16>>,
-        tlv
-      ],
+      payload: [<<@get_profile_list::little-16, size::little-16>>, tlv],
       decode: &parse_get_profile_list_resp/1
     }
   end
