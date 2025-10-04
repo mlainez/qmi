@@ -84,7 +84,7 @@ defmodule QMI.Codec.Profile do
   @spec get_profile_list(profile_type()) :: QMI.request()
   def get_profile_list(type \\ :profile_type_3gpp) do
     type_byte = encode_profile_type(type)
-    tlv = <<0x01, 0x01, type_byte>>
+    tlv = <<0x01, 0x01::little-16, type_byte>>
     size = byte_size(tlv)
 
     %{
