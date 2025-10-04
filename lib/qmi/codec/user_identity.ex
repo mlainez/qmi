@@ -88,6 +88,13 @@ defmodule QMI.Codec.UserIdentity do
     parse_tlvs(result, rest)
   end
 
+  @doc """
+  Provision a UIM session for a specific application.
+
+  This creates a session context for communicating with a specific application
+  on a particular card slot.
+  """
+  @spec provision_uim_session(non_neg_integer(), binary()) :: QMI.request()
   def provision_uim_session(slot_id, application_id) do
     application_information_tlv = application_information_tlv(slot_id, application_id)
     session_change_tlv = session_change_tlv()
@@ -104,7 +111,6 @@ defmodule QMI.Codec.UserIdentity do
   defp application_information_tlv(slot_id, application_id) do
     << 0x10, byte_size(application_id)+2::little-16,
       slot_id::8, byte_size(application_id)::8, application_id::binary >>
-    # 0: application info tlv is type 0x10
   end
 
   defp session_change_tlv() do
@@ -128,10 +134,16 @@ defmodule QMI.Codec.UserIdentity do
     {:error, :unknown}
   end
 
+  @doc """
+  Get the status of all card slots in the device.
+
+  This command retrieves information about all available card slots and their current state.
+  """
+  @spec get_cards_status() :: QMI.request()
   def get_cards_status() do
     %{
       service_id: 0x0B,
-      payload: [<<@get_card_status::16-little, 0, 0>>],
+      payload: [<<@get_card_status::16-little, 0x00, 0x00>>],
       decode: &parse_card_status_response/1
     }
   end

@@ -46,7 +46,16 @@ defmodule QMI.WirelessData do
     |> QMI.call(qmi)
   end
 
-  @spec get_profile_list(atom(), keyword()) :: any()
+  @doc """
+  Get a list of available profiles for a given profile type.
+
+  ## Parameters
+
+  * `qmi` - The QMI process name
+  * `args` - Keyword list of options:
+    * `:profile_type` - `:three_gpp` or `:three_gpp2` (optional, if not provided returns all profiles)
+  """
+  @spec get_profile_list(QMI.name(), keyword()) :: {:ok, [map()]} | {:error, atom()}
   def get_profile_list(qmi, args) do
     Codec.WirelessData.get_profile_list(args)
     |> QMI.call(qmi)

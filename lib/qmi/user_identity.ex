@@ -19,11 +19,30 @@ defmodule QMI.UserIdentity do
     |> QMI.call(qmi)
   end
 
+  @doc """
+  Get the status of all cards/SIM slots in the device.
+
+  This command retrieves information about all available card slots,
+  including their current state and any applications present.
+  """
+  @spec get_cards_status(QMI.name()) :: {:ok, map()} | {:error, atom()}
   def get_cards_status(qmi) do
     Codec.UserIdentity.get_cards_status()
     |> QMI.call(qmi)
   end
 
+  @doc """
+  Provision a UIM session for a specific application on a card slot.
+
+  This creates a session context that can be used for subsequent operations
+  on a specific application.
+
+  ## Parameters
+
+  * `slot_id` - The physical slot identifier (usually 0 or 1)
+  * `application_id` - The application identifier to provision a session for
+  """
+  @spec provision_uim_session(QMI.name(), non_neg_integer(), binary()) :: {:ok, map()} | {:error, atom()}
   def provision_uim_session(qmi, slot_id, application_id) do
     Codec.UserIdentity.provision_uim_session(slot_id, application_id)
     |> QMI.call(qmi)

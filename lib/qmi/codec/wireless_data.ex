@@ -13,7 +13,6 @@ defmodule QMI.Codec.WirelessData do
 
   @event_report 0x0001
   @start_network_interface 0x0020
-  @get_current_settings 0x002D
   @packet_service_status_ind 0x0022
   @modify_profile_settings 0x0028
   @get_profile_list 0x002A
@@ -761,12 +760,23 @@ defmodule QMI.Codec.WirelessData do
     parse_profile_settings_resp_tlvs(rest, parsed)
   end
 
+  @doc """
+  Request a list of available profiles for a given profile type.
+
+  ## Options
+
+  * `:profile_type` - the type of profile to query (`:three_gpp` or `:three_gpp2`)
+  """
+  @spec get_profile_list(keyword()) :: QMI.request()
   def get_profile_list(opts \\ []) do
     tlv =
       case Keyword.get(opts, :profile_type) do
-        :three_gpp -> <<0x01, 0x01, 0x00, 0x00>>
-        :three_gpp2 -> <<0x01, 0x01, 0x00, 0x01>>
-        _ -> <<>>
+        :three_gpp ->
+          <<0x01, 0x01::little-16, 0x00>>
+        :three_gpp2 ->
+          <<0x01, 0x01::little-16, 0x01>>
+        _ ->
+          <<>>
       end
 
     length = byte_size(tlv)
@@ -791,7 +801,7 @@ defmodule QMI.Codec.WirelessData do
     Enum.reverse(profiles)
   end
 
-  defp parse_profile_list_tlvs(profiles, <<0x01, len::little-16, _num_profiles::8, rest::binary-size(len), tail::binary>>) do
+  defp parse_profile_list_tlvs(profiles, <<0x01, len::little-16, _num_profiles::8, rest::binary-size(len-1), tail::binary>>) do
     parsed_profiles = parse_profile_list_entries([], rest)
     parse_profile_list_tlvs(parsed_profiles ++ profiles, tail)
   end
@@ -815,43 +825,4 @@ defmodule QMI.Codec.WirelessData do
 
   defp parse_profile_type(0x00), do: :three_gpp
   defp parse_profile_type(0x01), do: :three_gpp2
-
-  def get_current_settings() do
-    payload = [<<@get_current_settings::little-16, 0x00::little-16>>]
-
-    %{
-      service_id: 0x01,
-      payload: payload,
-      decode: &parse_get_current_settings_response/1
-    }
-  end
-
-  defp parse_get_current_settings_response(
-         <<@get_current_settings::little-16, size::little-16, tlvs::binary-size(size)>>
-       ) do
-    {:ok, parse_current_settings_tlvs(%{}, tlvs)}
-  end
-
-  defp parse_get_current_settings_response(_other) do
-    {:error, :unexpected_response}
-  end
-
-  defp parse_current_settings_tlvs(settings, <<type, len::little-16, value::binary-size(len), rest::binary>>) do
-    updated_settings =
-    case type do
-      0x10 -> Map.put(settings, :ip, decode_ipv4(value))
-      0x11 -> Map.put(settings, :gateway, decode_ipv4(value))
-      0x15 -> Map.put(settings, :dns1, decode_ipv4(value))
-      0x16 -> Map.put(settings, :dns2, decode_ipv4(value))
-      0x1E -> Map.put(settings, :mtu, decode_mtu(value))
-      _ -> settings
-    end
-
-    parse_current_settings_tlvs(updated_settings, rest)
-  end
-
-  defp parse_current_settings_tlvs(settings, <<>>), do: settings
-
-  defp decode_ipv4(<<a, b, c, d>>), do: "#{a}.#{b}.#{c}.#{d}"
-  defp decode_mtu(<<mtu::little-16>>), do: mtu
 end
