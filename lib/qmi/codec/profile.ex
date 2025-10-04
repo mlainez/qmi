@@ -12,7 +12,7 @@ defmodule QMI.Codec.Profile do
   """
 
   @get_profile_settings 0x002B
-  @get_profile_list 0x0025
+  @get_profile_list 0x002A
 
   @type profile_type :: :profile_type_3gpp | :profile_type_3gpp2 | :profile_type_epc
 
