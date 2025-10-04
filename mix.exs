@@ -1,12 +1,13 @@
 defmodule QMI.MixProject do
   use Mix.Project
 
-  @version "0.10.0"
-  @source_url "https://github.com/nerves-networking/qmi"
+  @app :qmi
+  @version "0.10.2"
+  @source_url "https://github.com/nerves-networking/#{@app}"
 
   def project do
     [
-      app: :qmi,
+      app: @app,
       version: @version,
       description: description(),
       package: package(),
@@ -22,20 +23,25 @@ defmodule QMI.MixProject do
         flags: [:missing_return, :extra_return, :unmatched_returns, :error_handling, :underspecs]
       ],
       docs: docs(),
-      package: package(),
-      preferred_cli_env: [
-        docs: :docs,
-        "hex.build": :docs,
-        "hex.publish": :docs,
-        dialyzer: :lint,
-        credo: :lint
-      ]
+      package: package()
     ]
   end
 
   def application do
     [
       extra_applications: [:logger]
+    ]
+  end
+
+  def cli do
+    [
+      preferred_envs: [
+        docs: :docs,
+        "hex.build": :docs,
+        "hex.publish": :docs,
+        dialyzer: :lint,
+        credo: :lint
+      ]
     ]
   end
 
@@ -96,8 +102,10 @@ defmodule QMI.MixProject do
       ],
       licenses: ["Apache-2.0"],
       links: %{
+        "Changelog" => "https://hexdocs.pm/#{@app}/changelog.html",
         "GitHub" => @source_url,
-        "REUSE Compliance" => "https://api.reuse.software/info/github.com/nerves-networking/qmi"
+        "REUSE Compliance" =>
+          "https://api.reuse.software/info/github.com/nerves-networking/#{@app}"
       }
     ]
   end

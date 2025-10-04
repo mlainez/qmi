@@ -1,7 +1,21 @@
+<!--
+  SPDX-License-Identifier: CC0-1.0
+  SPDX-FileCopyrightText: None
+-->
+
 <!-- markdownlint-disable-file MD024 -->
 # Changelog
 
 This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [v0.10.2] - 2025-09-28
+
+* Support Get Current Settings for getting the MTU. Thanks to @joserp93
+
+## [v0.10.1] - 2025-06-09
+
+* Update licensing and copyright for REUSE compliance
+* Ignore invalid emergency access barred values that were seen in the wild
 
 ## [v0.10.0] - 2024-07-25
 
