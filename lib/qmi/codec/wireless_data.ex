@@ -11,6 +11,8 @@ defmodule QMI.Codec.WirelessData do
 
   import Bitwise
 
+  require Logger
+
   @event_report 0x0001
   @start_network_interface 0x0020
   @packet_service_status_ind 0x0022
@@ -541,10 +543,10 @@ defmodule QMI.Codec.WirelessData do
     |> do_parse_get_current_settings_tlvs(rest)
   end
 
-  # IPv4 Address (TLV 0x1E)
+  # IPv4 Address (TLV 0x14)
   defp do_parse_get_current_settings_tlvs(
          parsed,
-         <<0x1E, 0x04::little-16, a, b, c, d, rest::binary>>
+         <<0x14, 0x04::little-16, a, b, c, d, rest::binary>>
        ) do
     ipv4_addr = "#{a}.#{b}.#{c}.#{d}"
     parsed
@@ -552,10 +554,10 @@ defmodule QMI.Codec.WirelessData do
     |> do_parse_get_current_settings_tlvs(rest)
   end
 
-  # IPv4 Gateway Address (TLV 0x20)
+  # IPv4 Gateway Address (TLV 0x15)
   defp do_parse_get_current_settings_tlvs(
          parsed,
-         <<0x20, 0x04::little-16, a, b, c, d, rest::binary>>
+         <<0x15, 0x04::little-16, a, b, c, d, rest::binary>>
        ) do
     gateway = "#{a}.#{b}.#{c}.#{d}"
     parsed
@@ -563,10 +565,10 @@ defmodule QMI.Codec.WirelessData do
     |> do_parse_get_current_settings_tlvs(rest)
   end
 
-  # IPv4 Subnet Mask (TLV 0x21)
+  # IPv4 Subnet Mask (TLV 0x16)
   defp do_parse_get_current_settings_tlvs(
          parsed,
-         <<0x21, 0x04::little-16, a, b, c, d, rest::binary>>
+         <<0x16, 0x04::little-16, a, b, c, d, rest::binary>>
        ) do
     subnet_mask = "#{a}.#{b}.#{c}.#{d}"
     parsed
@@ -574,10 +576,10 @@ defmodule QMI.Codec.WirelessData do
     |> do_parse_get_current_settings_tlvs(rest)
   end
 
-  # IPv4 DNS Primary (TLV 0x15)
+  # IPv4 DNS Primary (TLV 0x17)
   defp do_parse_get_current_settings_tlvs(
          parsed,
-         <<0x15, 0x04::little-16, a, b, c, d, rest::binary>>
+         <<0x17, 0x04::little-16, a, b, c, d, rest::binary>>
        ) do
     dns = "#{a}.#{b}.#{c}.#{d}"
     parsed
@@ -585,10 +587,10 @@ defmodule QMI.Codec.WirelessData do
     |> do_parse_get_current_settings_tlvs(rest)
   end
 
-  # IPv4 DNS Secondary (TLV 0x16)
+  # IPv4 DNS Secondary (TLV 0x18)
   defp do_parse_get_current_settings_tlvs(
          parsed,
-         <<0x16, 0x04::little-16, a, b, c, d, rest::binary>>
+         <<0x18, 0x04::little-16, a, b, c, d, rest::binary>>
        ) do
     dns = "#{a}.#{b}.#{c}.#{d}"
     parsed
@@ -616,10 +618,10 @@ defmodule QMI.Codec.WirelessData do
     |> do_parse_get_current_settings_tlvs(rest)
   end
 
-  # IPv6 Address (TLV 0x23) - 16 bytes + 1 byte prefix length
+  # IPv6 Address (TLV 0x1A) - 16 bytes + 1 byte prefix length
   defp do_parse_get_current_settings_tlvs(
          parsed,
-         <<0x23, 0x11::little-16, addr::binary-size(16), prefix_len, rest::binary>>
+         <<0x1A, 0x11::little-16, addr::binary-size(16), prefix_len, rest::binary>>
        ) do
     ipv6_addr = format_ipv6_address(addr)
     parsed
@@ -628,10 +630,10 @@ defmodule QMI.Codec.WirelessData do
     |> do_parse_get_current_settings_tlvs(rest)
   end
 
-  # IPv6 Gateway Address (TLV 0x26) - 16 bytes + 1 byte prefix length
+  # IPv6 Gateway Address (TLV 0x1C) - 16 bytes + 1 byte prefix length
   defp do_parse_get_current_settings_tlvs(
          parsed,
-         <<0x26, 0x11::little-16, addr::binary-size(16), _prefix_len, rest::binary>>
+         <<0x1C, 0x11::little-16, addr::binary-size(16), _prefix_len, rest::binary>>
        ) do
     gateway = format_ipv6_address(addr)
     parsed
@@ -639,10 +641,10 @@ defmodule QMI.Codec.WirelessData do
     |> do_parse_get_current_settings_tlvs(rest)
   end
 
-  # IPv6 DNS Primary (TLV 0x27)
+  # IPv6 DNS Primary (TLV 0x1E)
   defp do_parse_get_current_settings_tlvs(
          parsed,
-         <<0x27, 0x10::little-16, addr::binary-size(16), rest::binary>>
+         <<0x1E, 0x10::little-16, addr::binary-size(16), rest::binary>>
        ) do
     dns = format_ipv6_address(addr)
     parsed
@@ -650,10 +652,10 @@ defmodule QMI.Codec.WirelessData do
     |> do_parse_get_current_settings_tlvs(rest)
   end
 
-  # IPv6 DNS Secondary (TLV 0x28)
+  # IPv6 DNS Secondary (TLV 0x20)
   defp do_parse_get_current_settings_tlvs(
          parsed,
-         <<0x28, 0x10::little-16, addr::binary-size(16), rest::binary>>
+         <<0x20, 0x10::little-16, addr::binary-size(16), rest::binary>>
        ) do
     dns = format_ipv6_address(addr)
     parsed
@@ -673,44 +675,12 @@ defmodule QMI.Codec.WirelessData do
     |> do_parse_get_current_settings_tlvs(rest)
   end
 
-  # Domain Name List (TLV 0x17)
-  defp do_parse_get_current_settings_tlvs(
-         parsed,
-         <<0x17, len::little-16, domain_data::binary-size(len), rest::binary>>
-       ) do
-    domains = parse_domain_name_list(domain_data)
-    parsed
-    |> Map.put(:domain_name_list, domains)
-    |> do_parse_get_current_settings_tlvs(rest)
-  end
-
-  # PCSCF Address using PCO (TLV 0x31)
-  defp do_parse_get_current_settings_tlvs(
-         parsed,
-         <<0x31, 0x04::little-16, a, b, c, d, rest::binary>>
-       ) do
-    pcscf = "#{a}.#{b}.#{c}.#{d}"
-    parsed
-    |> Map.put(:pcscf_address_using_pco, pcscf)
-    |> do_parse_get_current_settings_tlvs(rest)
-  end
-
-  # PCSCF Domain Name List (TLV 0x32)
-  defp do_parse_get_current_settings_tlvs(
-         parsed,
-         <<0x32, len::little-16, domain_data::binary-size(len), rest::binary>>
-       ) do
-    domains = parse_domain_name_list(domain_data)
-    parsed
-    |> Map.put(:pcscf_domain_name_list, domains)
-    |> do_parse_get_current_settings_tlvs(rest)
-  end
-
   # Skip other TLVs
   defp do_parse_get_current_settings_tlvs(
          parsed,
-         <<_type, len::little-16, _value::binary-size(len), rest::binary>>
+         <<type, len::little-16, value::binary-size(len), rest::binary>>
        ) do
+    Logger.info("[WirelessData] Skipping unknown setting TLV type #{inspect(type)}: #{inspect(value)}")
     do_parse_get_current_settings_tlvs(parsed, rest)
   end
 
@@ -731,19 +701,6 @@ defmodule QMI.Codec.WirelessData do
     |> String.replace(~r/^::/, "::")
     |> String.replace(~r/::$/, "::")
   end
-
-  # Parse domain name list from binary data
-  defp parse_domain_name_list(data) do
-    parse_domain_names(data, [])
-  end
-
-  defp parse_domain_names(<<>>, acc), do: Enum.reverse(acc)
-
-  defp parse_domain_names(<<len, domain::binary-size(len), rest::binary>>, acc) do
-    parse_domain_names(rest, [domain | acc])
-  end
-
-  defp parse_domain_names(_invalid_data, acc), do: Enum.reverse(acc)
 
   @typedoc """
   The type of measurement you are wanting to be reported
