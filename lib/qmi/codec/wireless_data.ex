@@ -543,10 +543,10 @@ defmodule QMI.Codec.WirelessData do
     |> do_parse_get_current_settings_tlvs(rest)
   end
 
-  # IPv4 Address (TLV 0x14)
+  # IPv4 Address (TLV 0x1E)
   defp do_parse_get_current_settings_tlvs(
          parsed,
-         <<0x14, 0x04::little-16, a, b, c, d, rest::binary>>
+         <<0x1E, 0x04::little-16, a, b, c, d, rest::binary>>
        ) do
     ipv4_addr = "#{a}.#{b}.#{c}.#{d}"
     parsed
@@ -554,10 +554,10 @@ defmodule QMI.Codec.WirelessData do
     |> do_parse_get_current_settings_tlvs(rest)
   end
 
-  # IPv4 Gateway Address (TLV 0x15)
+  # IPv4 Gateway Address (TLV 0x20)
   defp do_parse_get_current_settings_tlvs(
          parsed,
-         <<0x15, 0x04::little-16, a, b, c, d, rest::binary>>
+         <<0x20, 0x04::little-16, a, b, c, d, rest::binary>>
        ) do
     gateway = "#{a}.#{b}.#{c}.#{d}"
     parsed
@@ -565,10 +565,10 @@ defmodule QMI.Codec.WirelessData do
     |> do_parse_get_current_settings_tlvs(rest)
   end
 
-  # IPv4 Subnet Mask (TLV 0x16)
+  # IPv4 Subnet Mask (TLV 0x21)
   defp do_parse_get_current_settings_tlvs(
          parsed,
-         <<0x16, 0x04::little-16, a, b, c, d, rest::binary>>
+         <<0x21, 0x04::little-16, a, b, c, d, rest::binary>>
        ) do
     subnet_mask = "#{a}.#{b}.#{c}.#{d}"
     parsed
@@ -576,10 +576,10 @@ defmodule QMI.Codec.WirelessData do
     |> do_parse_get_current_settings_tlvs(rest)
   end
 
-  # IPv4 DNS Primary (TLV 0x17)
+  # IPv4 DNS Primary (TLV 0x15)
   defp do_parse_get_current_settings_tlvs(
          parsed,
-         <<0x17, 0x04::little-16, a, b, c, d, rest::binary>>
+         <<0x15, 0x04::little-16, a, b, c, d, rest::binary>>
        ) do
     dns = "#{a}.#{b}.#{c}.#{d}"
     parsed
@@ -587,10 +587,10 @@ defmodule QMI.Codec.WirelessData do
     |> do_parse_get_current_settings_tlvs(rest)
   end
 
-  # IPv4 DNS Secondary (TLV 0x18)
+  # IPv4 DNS Secondary (TLV 0x16)
   defp do_parse_get_current_settings_tlvs(
          parsed,
-         <<0x18, 0x04::little-16, a, b, c, d, rest::binary>>
+         <<0x16, 0x04::little-16, a, b, c, d, rest::binary>>
        ) do
     dns = "#{a}.#{b}.#{c}.#{d}"
     parsed
