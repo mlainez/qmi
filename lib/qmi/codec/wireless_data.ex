@@ -516,6 +516,12 @@ defmodule QMI.Codec.WirelessData do
 
   def parse_get_current_settings_resp(_), do: {:error, :unexpected_response}
 
+  # Helper function to convert 32-bit little-endian integer to IPv4 string
+  defp format_ipv4_from_int32(ip_int) do
+    <<a, b, c, d>> = <<ip_int::little-32>>
+    "#{a}.#{b}.#{c}.#{d}"
+  end
+
   # Parse TLVs from Get Current Settings response
   # According to public references, IPv4/IPv6 MTU are exposed as MTU fields.
   # We support both possible TLV encodings commonly seen:
@@ -548,7 +554,7 @@ defmodule QMI.Codec.WirelessData do
          parsed,
          <<0x1E, 0x04::little-16, ip::little-32, rest::binary>>
        ) do
-    ipv4_addr = :inet_parse.ntoa(:binary.encode_unsigned(ip, :little))
+    ipv4_addr = format_ipv4_from_int32(ip)
     parsed
     |> Map.put(:ipv4_address, ipv4_addr)
     |> do_parse_get_current_settings_tlvs(rest)
@@ -559,7 +565,7 @@ defmodule QMI.Codec.WirelessData do
          parsed,
          <<0x20, 0x04::little-16, ip::little-32, rest::binary>>
        ) do
-    gateway = :inet_parse.ntoa(:binary.encode_unsigned(ip, :little))
+    gateway = format_ipv4_from_int32(ip)
     parsed
     |> Map.put(:ipv4_gateway, gateway)
     |> do_parse_get_current_settings_tlvs(rest)
@@ -570,7 +576,7 @@ defmodule QMI.Codec.WirelessData do
          parsed,
          <<0x21, 0x04::little-16, ip::little-32, rest::binary>>
        ) do
-    subnet_mask = :inet_parse.ntoa(:binary.encode_unsigned(ip, :little))
+    subnet_mask = format_ipv4_from_int32(ip)
     parsed
     |> Map.put(:ipv4_subnet_mask, subnet_mask)
     |> do_parse_get_current_settings_tlvs(rest)
@@ -581,7 +587,7 @@ defmodule QMI.Codec.WirelessData do
          parsed,
          <<0x15, 0x04::little-16, ip::little-32, rest::binary>>
        ) do
-    dns = :inet_parse.ntoa(:binary.encode_unsigned(ip, :little))
+    dns = format_ipv4_from_int32(ip)
     parsed
     |> Map.put(:ipv4_primary_dns, dns)
     |> do_parse_get_current_settings_tlvs(rest)
@@ -592,7 +598,7 @@ defmodule QMI.Codec.WirelessData do
          parsed,
          <<0x16, 0x04::little-16, ip::little-32, rest::binary>>
        ) do
-    dns = :inet_parse.ntoa(:binary.encode_unsigned(ip, :little))
+    dns = format_ipv4_from_int32(ip)
     parsed
     |> Map.put(:ipv4_secondary_dns, dns)
     |> do_parse_get_current_settings_tlvs(rest)
