@@ -516,9 +516,9 @@ defmodule QMI.Codec.WirelessData do
 
   def parse_get_current_settings_resp(_), do: {:error, :unexpected_response}
 
-  # Helper function to convert 32-bit little-endian integer to IPv4 string
+  # Helper function to convert 32-bit big-endian integer to IPv4 string
   defp format_ipv4_from_int32(ip_int) do
-    <<a, b, c, d>> = <<ip_int::little-32>>
+    <<a, b, c, d>> = <<ip_int::big-32>>
     "#{a}.#{b}.#{c}.#{d}"
   end
 
@@ -552,7 +552,7 @@ defmodule QMI.Codec.WirelessData do
   # IPv4 Address (TLV 0x1E)
   defp do_parse_get_current_settings_tlvs(
          parsed,
-         <<0x1E, 0x04::little-16, ip::little-32, rest::binary>>
+         <<0x1E, 0x04::little-16, ip::big-32, rest::binary>>
        ) do
     ipv4_addr = format_ipv4_from_int32(ip)
     parsed
@@ -563,7 +563,7 @@ defmodule QMI.Codec.WirelessData do
   # IPv4 Gateway Address (TLV 0x20)
   defp do_parse_get_current_settings_tlvs(
          parsed,
-         <<0x20, 0x04::little-16, ip::little-32, rest::binary>>
+         <<0x20, 0x04::little-16, ip::big-32, rest::binary>>
        ) do
     gateway = format_ipv4_from_int32(ip)
     parsed
@@ -574,7 +574,7 @@ defmodule QMI.Codec.WirelessData do
   # IPv4 Subnet Mask (TLV 0x21)
   defp do_parse_get_current_settings_tlvs(
          parsed,
-         <<0x21, 0x04::little-16, ip::little-32, rest::binary>>
+         <<0x21, 0x04::little-16, ip::big-32, rest::binary>>
        ) do
     subnet_mask = format_ipv4_from_int32(ip)
     parsed
@@ -585,7 +585,7 @@ defmodule QMI.Codec.WirelessData do
   # IPv4 DNS Primary (TLV 0x15)
   defp do_parse_get_current_settings_tlvs(
          parsed,
-         <<0x15, 0x04::little-16, ip::little-32, rest::binary>>
+         <<0x15, 0x04::little-16, ip::big-32, rest::binary>>
        ) do
     dns = format_ipv4_from_int32(ip)
     parsed
@@ -596,7 +596,7 @@ defmodule QMI.Codec.WirelessData do
   # IPv4 DNS Secondary (TLV 0x16)
   defp do_parse_get_current_settings_tlvs(
          parsed,
-         <<0x16, 0x04::little-16, ip::little-32, rest::binary>>
+         <<0x16, 0x04::little-16, ip::big-32, rest::binary>>
        ) do
     dns = format_ipv4_from_int32(ip)
     parsed
