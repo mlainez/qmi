@@ -548,7 +548,7 @@ defmodule QMI.Codec.WirelessData do
          parsed,
          <<0x1E, 0x04::little-16, a, b, c, d, rest::binary>>
        ) do
-    ipv4_addr = "#{a}.#{b}.#{c}.#{d}"
+    ipv4_addr = "#{d}.#{c}.#{b}.#{a}"
     parsed
     |> Map.put(:ipv4_address, ipv4_addr)
     |> do_parse_get_current_settings_tlvs(rest)
@@ -559,7 +559,7 @@ defmodule QMI.Codec.WirelessData do
          parsed,
          <<0x20, 0x04::little-16, a, b, c, d, rest::binary>>
        ) do
-    gateway = "#{a}.#{b}.#{c}.#{d}"
+    gateway = "#{d}.#{c}.#{b}.#{a}"
     parsed
     |> Map.put(:ipv4_gateway, gateway)
     |> do_parse_get_current_settings_tlvs(rest)
@@ -570,7 +570,7 @@ defmodule QMI.Codec.WirelessData do
          parsed,
          <<0x21, 0x04::little-16, a, b, c, d, rest::binary>>
        ) do
-    subnet_mask = "#{a}.#{b}.#{c}.#{d}"
+    subnet_mask = "#{d}.#{c}.#{b}.#{a}"
     parsed
     |> Map.put(:ipv4_subnet_mask, subnet_mask)
     |> do_parse_get_current_settings_tlvs(rest)
@@ -581,7 +581,7 @@ defmodule QMI.Codec.WirelessData do
          parsed,
          <<0x15, 0x04::little-16, a, b, c, d, rest::binary>>
        ) do
-    dns = "#{a}.#{b}.#{c}.#{d}"
+    dns = "#{d}.#{c}.#{b}.#{a}"
     parsed
     |> Map.put(:ipv4_primary_dns, dns)
     |> do_parse_get_current_settings_tlvs(rest)
@@ -592,7 +592,7 @@ defmodule QMI.Codec.WirelessData do
          parsed,
          <<0x16, 0x04::little-16, a, b, c, d, rest::binary>>
        ) do
-    dns = "#{a}.#{b}.#{c}.#{d}"
+    dns = "#{d}.#{c}.#{b}.#{a}"
     parsed
     |> Map.put(:ipv4_secondary_dns, dns)
     |> do_parse_get_current_settings_tlvs(rest)
