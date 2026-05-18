@@ -45,6 +45,40 @@ defmodule QMI.WirelessData do
   end
 
   @doc """
+  Set IP family preference (`:ipv4` / `:ipv6` / `:ipv4v6`) on the WDS
+  client. In-kernel Qualcomm modems on msm8953/sdm632 require this
+  before `start_network_interface/2` will succeed.
+  """
+  @spec set_ip_family(QMI.name(), Codec.WirelessData.ip_family_pref()) ::
+          {:ok, map()} | {:error, atom()}
+  def set_ip_family(qmi, family) do
+    Codec.WirelessData.set_ip_family(family) |> QMI.call(qmi)
+  end
+
+  @doc """
+  Bind the WDS client to a multiplexed data endpoint. Defaults match an
+  in-kernel modem layout (`endpoint_type: :embedded`,
+  `interface_number: 1`, `mux_id: 0x81`, `client_type: :tethered`).
+  Required before `start_network_interface/2` on rmnet/IPA-style
+  modems.
+  """
+  @spec bind_mux_data_port(QMI.name(), [Codec.WirelessData.bind_mux_opt()]) ::
+          {:ok, map()} | {:error, atom()}
+  def bind_mux_data_port(qmi, opts \\ []) do
+    Codec.WirelessData.bind_mux_data_port(opts) |> QMI.call(qmi)
+  end
+
+  @doc """
+  Bind the WDS client to a SIM subscription. `:primary` selects SIM 1
+  (the slot most single- and dual-SIM modems treat as default).
+  """
+  @spec bind_subscription(QMI.name(), Codec.WirelessData.subscription_id()) ::
+          {:ok, map()} | {:error, atom()}
+  def bind_subscription(qmi, sub \\ :primary) do
+    Codec.WirelessData.bind_subscription(sub) |> QMI.call(qmi)
+  end
+
+  @doc """
   Modify a profile's settings to be used when starting an interface connection.
 
   Available settings:

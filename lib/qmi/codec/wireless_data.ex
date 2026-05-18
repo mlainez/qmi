@@ -17,6 +17,9 @@ defmodule QMI.Codec.WirelessData do
   @modify_profile_settings 0x0028
   @get_profile_settings 0x002B
   @get_current_settings 0x002D
+  @set_ip_family 0x004D
+  @bind_mux_data_port 0x00A2
+  @bind_subscription 0x00AF
 
   # When a stat is configured to be reported but no data has been recorded
   # before the indication is sent, the value is `0xFFFFFFFF` which is treated as
@@ -1107,4 +1110,167 @@ defmodule QMI.Codec.WirelessData do
        ) do
     parse_profile_settings_tlvs(rest, parsed)
   end
+
+  # ---- Set IP Family (0x004D) -------------------------------------------
+  #
+  # Required by many QRTR-backed in-kernel modems before calling
+  # `start_network_interface/1` — the modem must know whether to bring up
+  # an IPv4, IPv6, or dual-stack PDP.
+
+  @typedoc "IP family preference for `set_ip_family/1`."
+  @type ip_family_pref :: :ipv4 | :ipv6 | :ipv4v6
+
+  @doc """
+  Build a request to set the IP family preference on the current WDS client.
+
+  Pass `:ipv4`, `:ipv6`, or `:ipv4v6`. On in-kernel modems this should
+  precede `start_network_interface/1`.
+  """
+  @spec set_ip_family(ip_family_pref()) :: QMI.request()
+  def set_ip_family(family) do
+    val = encode_ip_family(family)
+    tlv = <<0x01, 0x01::little-16, val>>
+    size = byte_size(tlv)
+    payload = [<<@set_ip_family::little-16, size::little-16>>, tlv]
+
+    %{
+      service_id: 0x01,
+      payload: payload,
+      decode: &parse_simple_resp(@set_ip_family, &1)
+    }
+  end
+
+  defp encode_ip_family(:ipv4), do: 4
+  defp encode_ip_family(:ipv6), do: 6
+  defp encode_ip_family(:ipv4v6), do: 8
+
+  # ---- Bind Mux Data Port (0x00A2) --------------------------------------
+  #
+  # Tells the modem which physical data endpoint (embedded / bam-dmux /
+  # hsusb / pcie) and which QMAP mux ID this WDS client owns. Required by
+  # modem firmwares that route data over a multiplexed link (rmnet/IPA on
+  # msm8953/sdm632 — i.e. Fairphone 3+).
+
+  @typedoc """
+  Data endpoint type. `:embedded` is the right choice for in-kernel
+  Qualcomm modems on SoCs like msm8953/sdm632 where the application
+  processor and the modem talk over IPA/QRTR. `:bam_dmux` is used on
+  older designs (msm8916). `:hsusb` / `:pcie` are for discrete USB / PCIe
+  modems.
+  """
+  @type endpoint_type :: :hsic | :hsusb | :pcie | :embedded | :bam_dmux | :undefined
+
+  @typedoc "QMI WDS client type for Bind Mux Data Port."
+  @type client_type :: :tethered | :undefined
+
+  @typedoc "Options for `bind_mux_data_port/1`."
+  @type bind_mux_opt ::
+          {:endpoint_type, endpoint_type()}
+          | {:interface_number, non_neg_integer()}
+          | {:mux_id, non_neg_integer()}
+          | {:client_type, client_type()}
+
+  @doc """
+  Bind the current WDS client to a (endpoint, mux-id) pair.
+
+  Default options match the common in-kernel-modem layout:
+  `endpoint_type: :embedded`, `interface_number: 1`, `mux_id: 0x81`.
+
+  `:client_type` is optional. When omitted, no Client Type TLV is
+  sent — matching what ModemManager does on IPA modems. Setting it
+  on FP3+/msm8953 firmware causes `WDS Start Network` to fail with
+  `:call_failed` later on.
+  """
+  @spec bind_mux_data_port([bind_mux_opt()]) :: QMI.request()
+  def bind_mux_data_port(opts \\ []) do
+    ep_type = Keyword.get(opts, :endpoint_type, :embedded) |> encode_endpoint_type()
+    iface_no = Keyword.get(opts, :interface_number, 1)
+    mux_id = Keyword.get(opts, :mux_id, 0x81)
+
+    ep_tlv = <<0x10, 0x08::little-16, ep_type::little-32, iface_no::little-32>>
+    mux_tlv = <<0x11, 0x01::little-16, mux_id>>
+
+    client_type_tlv =
+      case Keyword.get(opts, :client_type) do
+        nil ->
+          <<>>
+
+        client_type ->
+          <<0x13, 0x04::little-16, encode_client_type(client_type)::little-32>>
+      end
+
+    tlvs = [ep_tlv, mux_tlv, client_type_tlv]
+    size = byte_size(ep_tlv) + byte_size(mux_tlv) + byte_size(client_type_tlv)
+    payload = [<<@bind_mux_data_port::little-16, size::little-16>>, tlvs]
+
+    %{
+      service_id: 0x01,
+      payload: payload,
+      decode: &parse_simple_resp(@bind_mux_data_port, &1)
+    }
+  end
+
+  defp encode_endpoint_type(:hsic), do: 1
+  defp encode_endpoint_type(:hsusb), do: 2
+  defp encode_endpoint_type(:pcie), do: 3
+  defp encode_endpoint_type(:embedded), do: 4
+  defp encode_endpoint_type(:bam_dmux), do: 5
+  defp encode_endpoint_type(:undefined), do: 0xFF
+
+  defp encode_client_type(:tethered), do: 1
+  defp encode_client_type(:undefined), do: 0xFF
+
+  # ---- Bind Subscription (0x00AF) ---------------------------------------
+  #
+  # On dual-SIM modems (FP3+ has two SIM slots) the WDS client must be
+  # bound to a specific subscription before `start_network_interface/1`
+  # will pick the right SIM. `0` = primary, `1` = secondary.
+
+  @typedoc "Subscription slot for `bind_subscription/1`."
+  @type subscription_id :: :primary | :secondary | non_neg_integer()
+
+  @doc """
+  Bind the current WDS client to a SIM subscription. `:primary` (0) is
+  almost always what you want on a single- or dual-SIM device.
+  """
+  @spec bind_subscription(subscription_id()) :: QMI.request()
+  def bind_subscription(sub) do
+    val = encode_subscription(sub)
+    tlv = <<0x01, 0x04::little-16, val::little-32>>
+    size = byte_size(tlv)
+    payload = [<<@bind_subscription::little-16, size::little-16>>, tlv]
+
+    %{
+      service_id: 0x01,
+      payload: payload,
+      decode: &parse_simple_resp(@bind_subscription, &1)
+    }
+  end
+
+  defp encode_subscription(:primary), do: 0
+  defp encode_subscription(:secondary), do: 1
+  defp encode_subscription(n) when is_integer(n), do: n
+
+  # ---- Shared simple-response parser ------------------------------------
+  #
+  # Pulls just the standard QMI Operation Result TLV out of any response
+  # that has no extra fields on success.
+
+  defp parse_simple_resp(
+         msg_id,
+         <<msg_id::little-16, _size::little-16, 0x02, _rl::little-16, 0::little-16,
+           0::little-16, _rest::binary>>
+       ) do
+    {:ok, %{}}
+  end
+
+  defp parse_simple_resp(
+         msg_id,
+         <<msg_id::little-16, _size::little-16, 0x02, _rl::little-16, _qmi_err::little-16,
+           err::little-16, _rest::binary>>
+       ) do
+    {:error, QMI.Codes.decode_error_code(err)}
+  end
+
+  defp parse_simple_resp(_msg_id, _other), do: {:error, :unexpected_response}
 end

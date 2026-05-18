@@ -17,6 +17,7 @@ defmodule QMI.Codec.NetworkAccess do
 
   # messages
   @get_signal_strength 0x0020
+  @get_serving_system 0x0024
   @get_home_network 0x0025
   @get_rf_band_info 0x0031
   @set_system_selection_preference 0x0033
@@ -1086,6 +1087,44 @@ defmodule QMI.Codec.NetworkAccess do
 
   defp parse_network_selection_preference(0x00), do: :automatic
   defp parse_network_selection_preference(0x01), do: :manual
+
+  @doc """
+  Build a request to query the current NAS serving-system info.
+
+  The response payload is the same TLV soup as the
+  `:serving_system_indication` push, just delivered synchronously.
+  Useful at boot to seed registration state when the modem already
+  attached before our indication handler was alive (so the original
+  indication was missed).
+  """
+  @spec get_serving_system() :: QMI.request()
+  def get_serving_system() do
+    %{
+      service_id: @network_access_service_id,
+      payload: <<@get_serving_system::little-16, 0::little-16>>,
+      decode: &parse_get_serving_system/1
+    }
+  end
+
+  defp parse_get_serving_system(
+         <<@get_serving_system::little-16, _size::little-16, 0x02, _rl::little-16, 0::little-16,
+           0::little-16, rest::binary>>
+       ) do
+    result =
+      :serving_system_indication
+      |> init_indication()
+      |> parse_serving_system_indication(rest)
+
+    {:ok, result}
+  end
+
+  defp parse_get_serving_system(
+         <<@get_serving_system::little-16, _size::little-16, 0x02, _rl::little-16, _qmi_err::little-16,
+           err::little-16, _rest::binary>>
+       ),
+       do: {:error, QMI.Codes.decode_error_code(err)}
+
+  defp parse_get_serving_system(_other), do: {:error, :unexpected_response}
 
   @doc """
   Generate the `QMI.request()` for setting system selection preferences

@@ -69,6 +69,19 @@ defmodule QMI.NetworkAccess do
   end
 
   @doc """
+  Query the current NAS serving-system state.
+
+  Returns the same map shape as a `:serving_system_indication`
+  push — useful for bootstrapping state when the modem already
+  attached before the indication handler was alive.
+  """
+  @spec get_serving_system(QMI.name()) ::
+          {:ok, Codec.NetworkAccess.serving_system_indication()} | {:error, atom()}
+  def get_serving_system(qmi) do
+    Codec.NetworkAccess.get_serving_system() |> QMI.call(qmi)
+  end
+
+  @doc """
   Set the system selection preferences
   """
   @spec set_system_selection_preference(QMI.name(), [

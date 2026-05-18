@@ -26,13 +26,23 @@ defmodule QMI.Codec.WirelessDataAdmin do
   @type link_layer_protocol :: :raw_ip | :"802.3" | :unknown
 
   @typedoc """
-  Data aggregation protocol.
+  Data aggregation protocol. Wire values match libqmi's
+  `QMI_WDA_DATA_AGGREGATION_PROTOCOL_*` enum.
 
-  * `:disabled` – no aggregation
-  * `:qmap_v1` – QMAP version 1
-  * `:qmap_v5` – QMAP version 5
+  * `:disabled` (0x00) – no aggregation
+  * `:tlp` (0x01)
+  * `:qc_ncm` (0x02)
+  * `:mbim` (0x03)
+  * `:rndis` (0x04)
+  * `:qmap` (0x05) – QMAP v1
+  * `:qmap_v2` (0x06)
+  * `:qmap_v3` (0x07)
+  * `:qmap_v4` (0x08)
+  * `:qmap_v5` (0x09) – what ModemManager uses for IPA-backed modems
   """
-  @type aggregation_protocol :: :disabled | :qmap_v1 | :qmap_v5 | :unknown
+  @type aggregation_protocol ::
+          :disabled | :tlp | :qc_ncm | :mbim | :rndis | :qmap | :qmap_v2 | :qmap_v3 | :qmap_v4 |
+            :qmap_v5 | :unknown
 
   @typedoc """
   Result of `get_data_format/0` or `set_data_format/1`.
@@ -52,6 +62,12 @@ defmodule QMI.Codec.WirelessDataAdmin do
   * `:link_layer_protocol` – `:raw_ip` or `:"802.3"` (required)
   * `:ul_aggregation_protocol` – uplink aggregation (default `:disabled`)
   * `:dl_aggregation_protocol` – downlink aggregation (default `:disabled`)
+  * `:dl_max_datagrams` – downlink aggregation max datagrams per frame.
+    Required when `:dl_aggregation_protocol` is a QMAP variant. MM
+    defaults to `32` for IPA-backed modems.
+  * `:dl_max_size` – downlink aggregation max frame size (bytes).
+    Required when `:dl_aggregation_protocol` is a QMAP variant. MM
+    defaults to `32768` for IPA-backed modems.
   * `:qos_format` – whether to include QoS headers (default `false`)
   * `:endpoint_type` – endpoint device type (default `2` for HSUSB)
   * `:endpoint_iface_number` – interface number on the endpoint
@@ -60,6 +76,8 @@ defmodule QMI.Codec.WirelessDataAdmin do
           {:link_layer_protocol, link_layer_protocol()}
           | {:ul_aggregation_protocol, aggregation_protocol()}
           | {:dl_aggregation_protocol, aggregation_protocol()}
+          | {:dl_max_datagrams, non_neg_integer()}
+          | {:dl_max_size, non_neg_integer()}
           | {:qos_format, boolean()}
           | {:endpoint_type, non_neg_integer()}
           | {:endpoint_iface_number, non_neg_integer()}
@@ -121,6 +139,16 @@ defmodule QMI.Codec.WirelessDataAdmin do
   defp build_set_data_format_tlvs([{:dl_aggregation_protocol, proto} | rest], tlvs, size) do
     val = encode_aggregation_protocol(proto)
     tlv = <<0x13, 0x04::little-16, val::little-32>>
+    build_set_data_format_tlvs(rest, [tlvs, tlv], size + byte_size(tlv))
+  end
+
+  defp build_set_data_format_tlvs([{:dl_max_datagrams, n} | rest], tlvs, size) do
+    tlv = <<0x15, 0x04::little-16, n::little-32>>
+    build_set_data_format_tlvs(rest, [tlvs, tlv], size + byte_size(tlv))
+  end
+
+  defp build_set_data_format_tlvs([{:dl_max_size, n} | rest], tlvs, size) do
+    tlv = <<0x16, 0x04::little-16, n::little-32>>
     build_set_data_format_tlvs(rest, [tlvs, tlv], size + byte_size(tlv))
   end
 
@@ -248,12 +276,27 @@ defmodule QMI.Codec.WirelessDataAdmin do
   defp decode_link_layer_protocol(2), do: :raw_ip
   defp decode_link_layer_protocol(_), do: :unknown
 
-  defp encode_aggregation_protocol(:disabled), do: 0
-  defp encode_aggregation_protocol(:qmap_v1), do: 5
-  defp encode_aggregation_protocol(:qmap_v5), do: 6
+  defp encode_aggregation_protocol(:disabled), do: 0x00
+  defp encode_aggregation_protocol(:tlp), do: 0x01
+  defp encode_aggregation_protocol(:qc_ncm), do: 0x02
+  defp encode_aggregation_protocol(:mbim), do: 0x03
+  defp encode_aggregation_protocol(:rndis), do: 0x04
+  defp encode_aggregation_protocol(:qmap), do: 0x05
+  defp encode_aggregation_protocol(:qmap_v1), do: 0x05
+  defp encode_aggregation_protocol(:qmap_v2), do: 0x06
+  defp encode_aggregation_protocol(:qmap_v3), do: 0x07
+  defp encode_aggregation_protocol(:qmap_v4), do: 0x08
+  defp encode_aggregation_protocol(:qmap_v5), do: 0x09
 
-  defp decode_aggregation_protocol(0), do: :disabled
-  defp decode_aggregation_protocol(5), do: :qmap_v1
-  defp decode_aggregation_protocol(6), do: :qmap_v5
+  defp decode_aggregation_protocol(0x00), do: :disabled
+  defp decode_aggregation_protocol(0x01), do: :tlp
+  defp decode_aggregation_protocol(0x02), do: :qc_ncm
+  defp decode_aggregation_protocol(0x03), do: :mbim
+  defp decode_aggregation_protocol(0x04), do: :rndis
+  defp decode_aggregation_protocol(0x05), do: :qmap
+  defp decode_aggregation_protocol(0x06), do: :qmap_v2
+  defp decode_aggregation_protocol(0x07), do: :qmap_v3
+  defp decode_aggregation_protocol(0x08), do: :qmap_v4
+  defp decode_aggregation_protocol(0x09), do: :qmap_v5
   defp decode_aggregation_protocol(_), do: :unknown
 end
