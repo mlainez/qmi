@@ -16,7 +16,16 @@ defmodule QMI.ClientIDCache do
 
   @spec get_client_id(module(), non_neg_integer()) :: {:ok, non_neg_integer()} | {:error, atom()}
   def get_client_id(qmi, service_id) do
-    GenServer.call(name(qmi), {:get_client_id, qmi, service_id})
+    # When QMI.Supervisor is running a non-QMUX transport (QRTR, for
+    # in-kernel modems) it omits this cache entirely — the QMI CTL
+    # service that allocates per-service client IDs doesn't exist on
+    # QRTR; each socket *is* the client. Fall back to a constant 0 so
+    # the high-level service modules don't need to know which
+    # transport is in play.
+    case GenServer.whereis(name(qmi)) do
+      nil -> {:ok, 0}
+      _pid -> GenServer.call(name(qmi), {:get_client_id, qmi, service_id})
+    end
   end
 
   defp name(qmi) do

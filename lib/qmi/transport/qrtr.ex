@@ -179,7 +179,9 @@ defmodule QMI.Transport.QRTR do
   defp dispatch(node, port, data, state) do
     case Map.fetch(state.addrs, {node, port}) do
       {:ok, service_id} ->
-        Kernel.send(state.owner, {:qmi_in, self(), service_id, data})
+        # client_id has no meaning on QRTR (each socket = one client) —
+        # we hand a 0 to the owner to match the shape Transport.QMUX uses.
+        Kernel.send(state.owner, {:qmi_in, self(), service_id, 0, data})
 
       :error ->
         Logger.debug(

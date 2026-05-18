@@ -22,23 +22,44 @@ defmodule QMI.Message do
         }
 
   @spec decode(binary()) :: {:ok, t()} | {:error, :bad_qmux_frame}
-  def decode(<<0x01, _len::little-16, _flags, service, _client, bin::binary>>) do
-    transaction_size = if service == 0x00, do: 8, else: 16
-    <<type, transaction::little-size(transaction_size), message_body::binary>> = bin
-
-    message =
-      %{
-        service_id: service,
-        type: message_type(service, type),
-        message: message_body,
-        transaction_id: transaction
-      }
-      |> get_codes()
-
-    {:ok, message}
-  end
+  def decode(<<0x01, _len::little-16, _flags, service, client, bin::binary>>),
+    do: parse(service, client, bin)
 
   def decode(_), do: {:error, :bad_qmux_frame}
+
+  @doc """
+  Parse a QMI service message given the already-known
+  `service_id`/`client_id` (e.g. supplied out-of-band by a transport
+  like QRTR that carries them in the socket address rather than in a
+  QMUX header).
+
+  `qmi_msg` is the QMI service message itself —
+  `<<type(1), txn(little-N), msg_id(little-16), msg_len(little-16),
+    tlvs::binary>>` — i.e. exactly the bytes that follow the 3-byte
+  QMUX per-service header in a chardev-transported frame.
+  """
+  @spec parse(non_neg_integer(), non_neg_integer(), binary()) ::
+          {:ok, t()} | {:error, :bad_qmi_message}
+  def parse(service, _client, qmi_msg) when is_binary(qmi_msg) do
+    transaction_size = if service == 0x00, do: 8, else: 16
+
+    case qmi_msg do
+      <<type, transaction::little-size(transaction_size), message_body::binary>> ->
+        message =
+          %{
+            service_id: service,
+            type: message_type(service, type),
+            message: message_body,
+            transaction_id: transaction
+          }
+          |> get_codes()
+
+        {:ok, message}
+
+      _ ->
+        {:error, :bad_qmi_message}
+    end
+  end
 
   # types for control service
   defp message_type(0x00, 0x00), do: :request

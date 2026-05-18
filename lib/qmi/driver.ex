@@ -10,28 +10,27 @@ defmodule QMI.Driver do
 
   use GenServer
 
-  alias QMI.DevBridge
-
   require Logger
 
   defmodule State do
     @moduledoc false
 
-    defstruct bridge: nil,
+    defstruct transport_mod: nil,
+              transport: nil,
               device_path: nil,
-              ref: nil,
               transactions: %{},
               last_ctl_transaction: 0,
               last_service_transaction: 256,
               indication_callback: nil
   end
 
-  @request_flags 0
   @request_type 0
 
   @type options() :: [
           name: module(),
           device_path: Path.t(),
+          transport_mod: module(),
+          transport_opts: keyword(),
           indication_callback: QMI.indication_callback_fun()
         ]
 
@@ -58,17 +57,25 @@ defmodule QMI.Driver do
 
   @impl GenServer
   def init(opts) do
-    state = struct(State, opts)
-    {:ok, bridge} = DevBridge.start_link([])
+    transport_mod = Keyword.get(opts, :transport_mod, QMI.Transport.QMUX)
+    transport_opts =
+      opts
+      |> Keyword.get(:transport_opts, [])
+      |> Keyword.put(:owner, self())
+      # The QMUX transport needs the device_path; the QRTR transport
+      # ignores it. Passing it through is harmless either way.
+      |> Keyword.put_new(:device_path, opts[:device_path])
 
-    {:ok, %{state | bridge: bridge}, {:continue, :open}}
-  end
+    {:ok, transport} = transport_mod.start_link(transport_opts)
 
-  @impl GenServer
-  def handle_continue(:open, state) do
-    {:ok, ref} = DevBridge.open(state.bridge, state.device_path, [:read, :write])
+    state = %State{
+      transport_mod: transport_mod,
+      transport: transport,
+      device_path: opts[:device_path],
+      indication_callback: opts[:indication_callback]
+    }
 
-    {:noreply, %{state | ref: ref}}
+    {:ok, state}
   end
 
   @impl GenServer
@@ -85,53 +92,37 @@ defmodule QMI.Driver do
     {:noreply, fail_transaction_id(state, transaction_id, :timeout)}
   end
 
-  def handle_info({:dev_bridge, ref, :read, data}, %{ref: ref} = state) do
-    case QMI.Message.decode(data) do
+  def handle_info({:qmi_in, transport, service_id, client_id, qmi_msg}, %{transport: transport} = state) do
+    case QMI.Message.parse(service_id, client_id, qmi_msg) do
       {:ok, message} ->
         handle_report(message, state)
 
       {:error, _reason} ->
         Logger.warning(
-          "[QMI.Driver] #{state.device_path} invalid message from QMI: #{inspect(data)}"
+          "[QMI.Driver] invalid message from service #{service_id}: #{inspect(qmi_msg)}"
         )
 
         {:noreply, state}
     end
   end
 
-  def handle_info({:dev_bridge, ref, :error, err}, %{ref: ref} = state) do
-    Logger.error("[QMI.Driver] #{state.device_path} - Error: #{inspect(err)}")
-    {:noreply, state}
-  end
-
-  def handle_info({:dev_bridge, ref, :closed}, %{ref: ref} = state) do
-    {:noreply, state, {:continue, :open}}
-  end
-
   defp do_request(request, client_id, state) do
     {transaction, state} = next_transaction(request.service_id, state)
 
-    # Transaction needs to be sized based on control vs service message
+    # QMI service-message wire format (the same on both transports;
+    # transport adds whatever outer framing/routing its wire needs):
+    #   <<type(1), txn(little-N), payload>>
+    # type=0 means "request". Transaction is 1 byte for the CTL service
+    # (service_id=0) and 2 bytes for every other service.
     tran_size = if request.service_id == 0, do: 8, else: 16
 
-    service_msg =
-      make_service_msg(request.payload, request.service_id, client_id, transaction, tran_size)
+    qmi_msg =
+      [<<@request_type, transaction::little-size(tran_size)>>, request.payload]
+      |> IO.iodata_to_binary()
 
-    # Length needs to include the 2 length bytes as well
-    len = IO.iodata_length(service_msg) + 2
-
-    qmux_msg = [<<1, len::little-16>>, service_msg]
-
-    {:ok, _len} = DevBridge.write(state.bridge, qmux_msg)
+    :ok = state.transport_mod.send(state.transport, request.service_id, client_id, qmi_msg)
 
     {transaction, state}
-  end
-
-  defp make_service_msg(data, service, client_id, transaction, tran_size) do
-    [
-      <<@request_flags, service, client_id, @request_type, transaction::little-size(tran_size)>>,
-      data
-    ]
   end
 
   defp next_transaction(0, %{last_ctl_transaction: tran} = state) do
