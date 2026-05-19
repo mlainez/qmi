@@ -382,17 +382,19 @@ defmodule QMI.Codec.LOC do
 
   defp find_tlv(_, _), do: nil
 
-  # QMI LOC position reports use "milliseconds since GPS epoch
-  # (1980-01-06 00:00:00 UTC)" minus leap seconds. We don't have the
-  # leap seconds TLV in all reports; approximate using current Unix
-  # leap-second offset (18 s as of 2017-01-01, unchanged through 2026).
-  @gps_epoch_unix 315_964_800
-  @leap_seconds 18
-
+  # The QMI LOC Position Report's UTC Timestamp TLV (0x25) is
+  # documented in qmi-service-loc.json as a `guint64`. Per the public
+  # libqmi spec it's "ms since GPS epoch (1980-01-06)" minus leap
+  # seconds — but observation on the SDM632 (FP3+) is that the modem
+  # firmware actually emits milliseconds since the **Unix epoch**
+  # directly (matching ModemManager's `Modem.Location.GetLocation`
+  # output, which exposes ISO-8601 wall-clock without any further
+  # arithmetic). We trust the wire value as Unix ms; if a future
+  # modem firmware uses the GPS-epoch convention we can detect it by
+  # checking for an implausible-future timestamp and apply the
+  # offset then.
   defp utc_to_datetime(ms) when is_integer(ms) and ms > 0 do
-    unix_ms = ms + @gps_epoch_unix * 1000 - @leap_seconds * 1000
-
-    case DateTime.from_unix(div(unix_ms, 1000), :second) do
+    case DateTime.from_unix(div(ms, 1000), :second) do
       {:ok, dt} -> dt
       _ -> nil
     end
