@@ -24,6 +24,10 @@ defmodule QMI.Codec.Indication do
     QMI.Codec.NetworkAccess.parse_indication(message.message)
   end
 
+  def parse(%{service_id: 0x10} = message) do
+    QMI.Codec.LOC.parse_indication(message.message)
+  end
+
   def parse(_message) do
     {:error, :invalid_indication}
   end
