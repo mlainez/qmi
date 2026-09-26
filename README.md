@@ -10,6 +10,16 @@
 [![CircleCI](https://dl.circleci.com/status-badge/img/gh/nerves-networking/qmi/tree/main.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/nerves-networking/qmi/tree/main)
 [![REUSE status](https://api.reuse.software/badge/github.com/nerves-networking/qmi)](https://api.reuse.software/info/github.com/nerves-networking/qmi)
 
+> **Fork note — `qrtr-transport` branch.** This branch of
+> [mlainez/qmi](https://github.com/mlainez/qmi) adds a QRTR
+> (`AF_QIPCRTR` socket) transport for in-kernel Qualcomm modems that
+> don't expose a `/dev/cdc-wdm*` chardev (e.g. the Fairphone 3 /
+> MSM8953), selected with `transport: :qrtr` on `QMI.Supervisor`, plus
+> a QMI LOC (GNSS location) codec in `QMI.Codec.LOC`. The existing
+> QMUX/cdc-wdm path is unchanged for USB modems. See
+> [QRTR_TRANSPORT.md](QRTR_TRANSPORT.md) for details. This is
+> workshop-grade work, not an upstream release.
+
 Qualcomm MSM Interface in Elixir
 
 This library lets you send and receive messages from a QMI-enabled cellular

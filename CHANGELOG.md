@@ -8,6 +8,31 @@
 
 This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased (`qrtr-transport` fork branch)
+
+* Add `QMI.Transport` behaviour with `QMI.Transport.QMUX` (existing
+  cdc-wdm path) and `QMI.Transport.QRTR` (`AF_QIPCRTR` sockets for
+  in-kernel Qualcomm modems)
+* Add `QMI.Codec.LOC` for the QMI location service (register events,
+  start/stop, operation mode, position report and GNSS SV info
+  indications)
+* `QMI.Driver` no longer crashes when a transport can't deliver a
+  request: the caller gets `{:error, reason}` (e.g.
+  `{:error, {:service_not_found, 16}}` before the modem announces
+  LOC). A transport that fails to start or exits is restarted with
+  exponential backoff; calls meanwhile return
+  `{:error, :transport_unavailable}` and in-flight calls get
+  `{:error, :transport_down}`. A failure response for a request that
+  already timed out no longer crashes the driver.
+* LOC codec fixes: `:engine_state`/`:fix_session_state` event bits are
+  7 and 8; constellation 6 is `:bds` and 7 is `:qzss`; satellites now
+  report `status` (`:idle | :searching | :tracking`) instead of the
+  incorrect `used_in_fix`; position reports carry `satellites_used`
+  (SV IDs from TLV 0x2C)
+* QRTR: ignore the name service's all-zero end-of-listing packet
+* Fix Elixir 1.20 compile warnings
+* Not yet verified on modem hardware
+
 ## [v0.10.2] - 2025-09-28
 
 * Support Get Current Settings for getting the MTU. Thanks to @joserp93

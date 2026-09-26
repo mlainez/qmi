@@ -20,7 +20,7 @@ defmodule QMI.Transport do
     * accepting QMI messages from `QMI.Driver` in their service+client
       form and getting them to the right destination on the wire;
     * delivering inbound messages back to the driver via
-      `{:qmi_in, transport_handle, service_id, qmi_bytes}` so the
+      `{:qmi_in, transport_handle, service_id, client_id, qmi_bytes}` so the
       driver can match transactions and run indication callbacks.
 
   See `QMI.Transport.QMUX` (cdc-wdm / wwan-chardev path) and
@@ -30,7 +30,7 @@ defmodule QMI.Transport do
 
   @typedoc """
   Opaque per-transport handle returned by `start_link/1`. Passed back
-  in to `send/3` and tags inbound `{:qmi_in, …}` messages so the
+  in to `send/4` and tags inbound `{:qmi_in, …}` messages so the
   driver can demux when more than one transport runs concurrently.
   """
   @type handle :: term()

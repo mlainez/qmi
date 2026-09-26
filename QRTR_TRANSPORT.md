@@ -37,52 +37,31 @@ QMI.Supervisor
   QMUX header. The transport adds whatever framing/routing its wire
   needs.
 * inbound messages come back to the owner as
-  `{:qmi_in, handle, service_id, bytes}`.
+  `{:qmi_in, handle, service_id, client_id, bytes}`.
 
 The two wires diverge in semantics — chardev is byte-stream, QRTR is
 packet-oriented and address-per-service — but the QMI driver above
 only sees the same behaviour, so it can stay transport-agnostic.
 
-## Status (current commit)
+## Status
 
-* `lib/qmi/transport.ex`         — behaviour definition (final).
-* `lib/qmi/transport/qmux.ex`    — stub. Will eventually replace the
-  inline `DevBridge` usage in `QMI.Driver`. Until then, the existing
-  driver path is untouched and USB-modem users see zero change.
-* `lib/qmi/transport/qrtr.ex`    — skeleton. Opens the AF_QIPCRTR
-  socket and stops. The control-packet parsing, service table, and
-  `sendto`/`recvfrom` plumbing all marked TODO.
+* `QMI.Driver` talks to the wire only through `QMI.Transport`.
+  `QMI.Transport.QMUX` is the extracted cdc-wdm path;
+  `QMI.Transport.QRTR` is the `AF_QIPCRTR` path.
+* `QMI.Supervisor` picks the transport from `:transport`, or
+  auto-detects it from `:device_path` (`/dev/cdc-wdm*` and
+  `/dev/wwan*qmi*` are QMUX, anything else QRTR).
+* The driver restarts a transport that fails to open or exits, with
+  exponential backoff (1 s doubling to 30 s), and answers calls with
+  `{:error, :transport_unavailable}` meanwhile. Calls for a service
+  the modem hasn't announced yet return
+  `{:error, {:service_not_found, service_id}}` instead of crashing.
+* A LOC (location) codec, `QMI.Codec.LOC`, is included.
+* The sibling `vintage_net_qmi` fork (same branch name) passes
+  `transport: :qrtr` through.
 
-Nothing in this branch is wired into `QMI.Driver` yet. Existing
-behaviour is preserved verbatim.
-
-## Roadmap
-
-1. **Discovery prototype** (next session) — flesh out `Transport.QRTR`
-   to:
-   * send `QRTR_TYPE_NEW_LOOKUP` for `(service=*, instance=*)`,
-   * parse `QRTR_TYPE_NEW_SERVER` / `DEL_SERVER` control packets,
-   * maintain the `services` routing table,
-   * expose `lookup(service_id)` so a test can confirm the FP3+ modem's
-     QMI services are discovered.
-
-2. **Round-trip prototype** — call a known QMI service (e.g. DMS
-   Get IDs) and decode the response. This proves the wire format
-   works without an outer QMUX header.
-
-3. **Driver delegation** — refactor `QMI.Driver` to call
-   `QMI.Transport.<impl>.send/4` instead of `DevBridge.write/2` and
-   accept `{:qmi_in, _, _, _}` instead of `{:dev_bridge, _, :read, _}`.
-   Extract the current cdc-wdm code path into `QMI.Transport.QMUX`
-   1:1, no logic change.
-
-4. **Supervisor auto-detect** — when `:transport` isn't set, pick
-   QMUX if `:device_path` is a regular file under `/dev/cdc-wdm*` or
-   `/dev/wwan*qmi*`, QRTR otherwise. Explicit `transport: :qrtr |
-   :qmux` overrides.
-
-5. **vintage_net_qmi integration** — same `qrtr-transport` branch on
-   the sibling fork passes `transport: :qrtr` through when configured.
+Not verified on hardware in this revision: the driver error handling
+and LOC codec fixes were only tested on a host with a fake transport.
 
 ## Why pure-Elixir (no C port)
 
