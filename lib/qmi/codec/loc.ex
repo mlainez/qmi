@@ -26,13 +26,18 @@ defmodule QMI.Codec.LOC do
 
   Indications decoded by `parse_indication/1`:
 
-    * Position Report (0x0024) — lat/lon/alt/speed/heading/accuracy
-      and the timestamp.
+    * Position Report (0x0024) — lat/lon/alt/speed/heading/accuracy,
+      the timestamp and the IDs of the satellites used in the fix.
     * GNSS SV Info (0x0025) — per-satellite SNR / azimuth / elevation
-      / constellation / used-in-fix bit.
+      / constellation / processing status (idle, searching, tracking).
+
+  Field layouts and enum values follow libqmi's `qmi-service-loc.json`
+  and Qualcomm's `location_service_v02.h` IDL. Where the two disagree
+  (satellite status values, session status 7, constellations 6 and 7)
+  the Qualcomm IDL is used, since that is what the modem firmware
+  implements.
   """
 
-  require Logger
   import Bitwise
 
   @loc_service_id 0x10
@@ -53,8 +58,8 @@ defmodule QMI.Codec.LOC do
     position_report: 1 <<< 0,
     gnss_satellite_info: 1 <<< 1,
     nmea: 1 <<< 2,
-    engine_state: 1 <<< 9,
-    fix_session_state: 1 <<< 10
+    engine_state: 1 <<< 7,
+    fix_session_state: 1 <<< 8
   }
 
   @operation_mode %{
@@ -74,19 +79,29 @@ defmodule QMI.Codec.LOC do
     4 => :user_ended,
     5 => :bad_parameter,
     6 => :phone_offline,
-    # The libqmi enum also names 6 as ENGINE_LOCKED — we keep
-    # :phone_offline since the modem reuses the value.
+    # libqmi assigns ENGINE_LOCKED = 6 as well; Qualcomm's IDL
+    # (eQMI_LOC_SESS_STATUS_ENGINE_LOCKED_V02) uses 7.
     7 => :engine_locked
   }
 
+  # qmiLocSvSystemEnumT_v02. libqmi only lists 1..5; 6 and 7 come from
+  # Qualcomm's IDL. 4 (COMPASS) is deprecated in favour of 6 (BDS).
   @system %{
     1 => :gps,
     2 => :galileo,
     3 => :sbas,
     4 => :compass,
     5 => :glonass,
-    6 => :qzss,
-    7 => :irnss
+    6 => :bds,
+    7 => :qzss
+  }
+
+  # qmiLocSvStatusEnumT_v02 (libqmi's QmiLocSatelliteStatus uses 0..2,
+  # which does not match the Qualcomm IDL).
+  @satellite_status %{
+    1 => :idle,
+    2 => :searching,
+    3 => :tracking
   }
 
   @type event_flag ::
@@ -117,16 +132,17 @@ defmodule QMI.Codec.LOC do
           pdop: float() | nil,
           vdop: float() | nil,
           utc_timestamp: integer() | nil,
-          datetime: DateTime.t() | nil
+          datetime: DateTime.t() | nil,
+          satellites_used: [non_neg_integer()]
         }
 
   @type satellite :: %{
           system: atom(),
           sv_id: non_neg_integer(),
+          status: :idle | :searching | :tracking | :unknown,
           elevation: float(),
           azimuth: float(),
           snr: float(),
-          used_in_fix: boolean(),
           healthy: boolean()
         }
 
@@ -281,7 +297,8 @@ defmodule QMI.Codec.LOC do
       pdop: nil,
       vdop: nil,
       utc_timestamp: nil,
-      datetime: nil
+      datetime: nil,
+      satellites_used: []
     }
   end
 
@@ -313,6 +330,13 @@ defmodule QMI.Codec.LOC do
     %{acc | utc_timestamp: utc_ms, datetime: utc_to_datetime(utc_ms)}
   end
 
+  # SVs used to calculate the fix: u8 count + u16 SV IDs. Note the
+  # numbering differs from GNSS SV Info for GLONASS (65..96 here,
+  # 1..32 there).
+  defp apply_position_tlv(acc, 0x2C, <<count::8, ids::binary-size(count * 2)>>) do
+    %{acc | satellites_used: for(<<id::little-16 <- ids>>, do: id)}
+  end
+
   defp apply_position_tlv(acc, _tag, _val), do: acc
 
   # ---- GNSS SV info parsing ---------------------------------------------
@@ -337,8 +361,8 @@ defmodule QMI.Codec.LOC do
   #   u32 system
   #   u16 satellite id
   #   u8  health status
-  #   u32 satellite status
-  #   u8  navigation data
+  #   u32 satellite status (1 idle, 2 searching, 3 tracking)
+  #   u8  navigation data (ephemeris/almanac bits)
   #   f32 elevation degrees
   #   f32 azimuth degrees
   #   f32 SNR (BHz)
@@ -354,10 +378,10 @@ defmodule QMI.Codec.LOC do
     sat = %{
       system: Map.get(@system, system, :unknown),
       sv_id: sv_id,
+      status: Map.get(@satellite_status, sat_status, :unknown),
       elevation: elev,
       azimuth: azim,
       snr: snr,
-      used_in_fix: (sat_status &&& 0x01) == 0x01,
       healthy: health == 1
     }
 
@@ -382,17 +406,10 @@ defmodule QMI.Codec.LOC do
 
   defp find_tlv(_, _), do: nil
 
-  # The QMI LOC Position Report's UTC Timestamp TLV (0x25) is
-  # documented in qmi-service-loc.json as a `guint64`. Per the public
-  # libqmi spec it's "ms since GPS epoch (1980-01-06)" minus leap
-  # seconds — but observation on the SDM632 (FP3+) is that the modem
-  # firmware actually emits milliseconds since the **Unix epoch**
-  # directly (matching ModemManager's `Modem.Location.GetLocation`
-  # output, which exposes ISO-8601 wall-clock without any further
-  # arithmetic). We trust the wire value as Unix ms; if a future
-  # modem firmware uses the GPS-epoch convention we can detect it by
-  # checking for an implausible-future timestamp and apply the
-  # offset then.
+  # The Position Report's UTC Timestamp TLV (0x25) is a u64 in
+  # milliseconds since the Unix epoch (1970-01-01 UTC), per Qualcomm's
+  # IDL (`timestampUtc`: "Milliseconds since Jan. 1, 1970"). libqmi
+  # only documents it as a `guint64`. No GPS-epoch conversion needed.
   defp utc_to_datetime(ms) when is_integer(ms) and ms > 0 do
     case DateTime.from_unix(div(ms, 1000), :second) do
       {:ok, dt} -> dt
