@@ -21,8 +21,8 @@ defmodule QMI.Transport.QRTR do
       outer header — the QMUX `service_id` / `client_id` are implicit
       in the socket address.
     * Inbound data packets (sender port != `CTRL`) are forwarded to
-      the owner process as `{:qmi_in, transport_pid, service_id,
-      payload}`. The service_id is inferred from the source address
+      the owner process as `{:qmi_in, transport_pid, service_id, 0,
+      payload}` (client id is always 0 on QRTR). The service_id is inferred from the source address
       via the routing table.
 
   All wire I/O is pure Elixir on top of OTP `:socket`. No C port.
@@ -113,7 +113,7 @@ defmodule QMI.Transport.QRTR do
   end
 
   @impl GenServer
-  def handle_continue(:open_socket, state) do
+  def handle_continue(:open_socket, %State{} = state) do
     with {:ok, sock} <- :socket.open(@af_qipcrtr, :dgram, 0),
          # Subscribe to all-services advertise/withdraw events. Sending
          # to (local_node, CTRL) — destination node is read from our
@@ -191,6 +191,11 @@ defmodule QMI.Transport.QRTR do
 
     state
   end
+
+  # The name service terminates the initial listing with an all-zero
+  # NEW_SERVER packet. It is not a real service.
+  defp handle_ctrl(<<@qrtr_type_new_server::32-little, 0::32, 0::32, 0::32, 0::32, _::binary>>, state),
+    do: state
 
   defp handle_ctrl(
          <<@qrtr_type_new_server::32-little,

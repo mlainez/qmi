@@ -17,6 +17,9 @@ defmodule QMI.Driver do
 
     defstruct transport_mod: nil,
               transport: nil,
+              transport_opts: [],
+              retry_min_ms: nil,
+              retry_ms: nil,
               device_path: nil,
               transactions: %{},
               last_ctl_transaction: 0,
@@ -26,11 +29,17 @@ defmodule QMI.Driver do
 
   @request_type 0
 
+  # Backoff used when the transport fails to start or exits (e.g. the
+  # QRTR socket family isn't available yet, or the modem restarted).
+  @transport_retry_min_ms 1_000
+  @transport_retry_max_ms 30_000
+
   @type options() :: [
           name: module(),
           device_path: Path.t(),
           transport_mod: module(),
           transport_opts: keyword(),
+          transport_retry_ms: pos_integer(),
           indication_callback: QMI.indication_callback_fun()
         ]
 
@@ -57,7 +66,13 @@ defmodule QMI.Driver do
 
   @impl GenServer
   def init(opts) do
+    # The transport is linked to us. Trap exits so a transport that
+    # fails to open (or dies later) is restarted with backoff instead
+    # of taking the driver down and crash-looping QMI.Supervisor.
+    Process.flag(:trap_exit, true)
+
     transport_mod = Keyword.get(opts, :transport_mod, QMI.Transport.QMUX)
+
     transport_opts =
       opts
       |> Keyword.get(:transport_opts, [])
@@ -66,25 +81,42 @@ defmodule QMI.Driver do
       # ignores it. Passing it through is harmless either way.
       |> Keyword.put_new(:device_path, opts[:device_path])
 
-    {:ok, transport} = transport_mod.start_link(transport_opts)
-
     state = %State{
       transport_mod: transport_mod,
-      transport: transport,
+      transport_opts: transport_opts,
+      retry_min_ms: Keyword.get(opts, :transport_retry_ms, @transport_retry_min_ms),
+      retry_ms: Keyword.get(opts, :transport_retry_ms, @transport_retry_min_ms),
       device_path: opts[:device_path],
       indication_callback: opts[:indication_callback]
     }
 
-    {:ok, state}
+    {:ok, state, {:continue, :start_transport}}
   end
 
   @impl GenServer
-  def handle_call({:call, client_id, request, timeout}, from, state) do
-    {transaction, state} = do_request(request, client_id, state)
-    timer = Process.send_after(self(), {:timeout, transaction}, timeout)
+  def handle_continue(:start_transport, state) do
+    {:noreply, start_transport(state)}
+  end
 
-    {:noreply,
-     %{state | transactions: Map.put(state.transactions, transaction, {from, request, timer})}}
+  @impl GenServer
+  def handle_call({:call, _client_id, _request, _timeout}, _from, %{transport: nil} = state) do
+    {:reply, {:error, :transport_unavailable}, state}
+  end
+
+  def handle_call({:call, client_id, request, timeout}, from, state) do
+    case do_request(request, client_id, state) do
+      {:ok, transaction, state} ->
+        timer = Process.send_after(self(), {:timeout, transaction}, timeout)
+
+        {:noreply,
+         %{
+           state
+           | transactions: Map.put(state.transactions, transaction, {from, request, timer})
+         }}
+
+      {:error, reason, state} ->
+        {:reply, {:error, reason}, state}
+    end
   end
 
   @impl GenServer
@@ -92,7 +124,29 @@ defmodule QMI.Driver do
     {:noreply, fail_transaction_id(state, transaction_id, :timeout)}
   end
 
+  def handle_info(:start_transport, %{transport: nil} = state) do
+    {:noreply, start_transport(state)}
+  end
+
+  def handle_info(:start_transport, state), do: {:noreply, state}
+
+  def handle_info({:EXIT, transport, reason}, %{transport: transport} = state) do
+    Logger.warning("[QMI.Driver] transport exited: #{inspect(reason)}")
+
+    state =
+      Enum.reduce(Map.keys(state.transactions), %{state | transport: nil}, fn id, acc ->
+        fail_transaction_id(acc, id, :transport_down)
+      end)
+
+    {:noreply, schedule_transport_restart(state)}
+  end
+
+  def handle_info({:EXIT, _pid, _reason}, state), do: {:noreply, state}
+
   def handle_info({:qmi_in, transport, service_id, client_id, qmi_msg}, %{transport: transport} = state) do
+    # Traffic from the modem means the transport is healthy again.
+    state = %{state | retry_ms: state.retry_min_ms}
+
     case QMI.Message.parse(service_id, client_id, qmi_msg) do
       {:ok, message} ->
         handle_report(message, state)
@@ -104,6 +158,25 @@ defmodule QMI.Driver do
 
         {:noreply, state}
     end
+  end
+
+  def handle_info(_msg, state), do: {:noreply, state}
+
+  defp start_transport(state) do
+    case state.transport_mod.start_link(state.transport_opts) do
+      {:ok, transport} ->
+        %{state | transport: transport}
+
+      {:error, reason} ->
+        Logger.warning("[QMI.Driver] transport failed to start: #{inspect(reason)}")
+        schedule_transport_restart(state)
+    end
+  end
+
+  defp schedule_transport_restart(state) do
+    Logger.info("[QMI.Driver] restarting transport in #{state.retry_ms} ms")
+    _ = Process.send_after(self(), :start_transport, state.retry_ms)
+    %{state | retry_ms: min(state.retry_ms * 2, @transport_retry_max_ms)}
   end
 
   defp do_request(request, client_id, state) do
@@ -120,9 +193,23 @@ defmodule QMI.Driver do
       [<<@request_type, transaction::little-size(tran_size)>>, request.payload]
       |> IO.iodata_to_binary()
 
-    :ok = state.transport_mod.send(state.transport, request.service_id, client_id, qmi_msg)
+    case transport_send(state, request.service_id, client_id, qmi_msg) do
+      :ok -> {:ok, transaction, state}
+      {:error, reason} -> {:error, reason, state}
+    end
+  end
 
-    {transaction, state}
+  # Transports return `{:error, reason}` for recoverable problems (e.g.
+  # QRTR's `{:service_not_found, id}` before the modem announces a
+  # service). Report those to the caller rather than crashing.
+  defp transport_send(state, service_id, client_id, qmi_msg) do
+    case state.transport_mod.send(state.transport, service_id, client_id, qmi_msg) do
+      :ok -> :ok
+      {:error, _reason} = error -> error
+      other -> {:error, other}
+    end
+  catch
+    :exit, _reason -> {:error, :transport_down}
   end
 
   defp next_transaction(0, %{last_ctl_transaction: tran} = state) do
@@ -274,9 +361,15 @@ defmodule QMI.Driver do
   defp parse_call_end_reason_type(other), do: {:unknown, other}
 
   defp fail_transaction_id(state, transaction_id, error) do
-    {{from, _request, timer}, transactions} = Map.pop(state.transactions, transaction_id)
-    _ = Process.cancel_timer(timer)
-    GenServer.reply(from, {:error, error})
-    %{state | transactions: transactions}
+    case Map.pop(state.transactions, transaction_id) do
+      {{from, _request, timer}, transactions} ->
+        _ = Process.cancel_timer(timer)
+        GenServer.reply(from, {:error, error})
+        %{state | transactions: transactions}
+
+      {nil, _transactions} ->
+        # e.g. a failure response arriving after the request timed out
+        state
+    end
   end
 end
