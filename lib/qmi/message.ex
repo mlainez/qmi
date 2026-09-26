@@ -44,7 +44,7 @@ defmodule QMI.Message do
     transaction_size = if service == 0x00, do: 8, else: 16
 
     case qmi_msg do
-      <<type, transaction::little-size(transaction_size), message_body::binary>> ->
+      <<type, transaction::little-size(^transaction_size), message_body::binary>> ->
         message =
           %{
             service_id: service,
